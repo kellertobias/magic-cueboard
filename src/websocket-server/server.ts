@@ -18,7 +18,7 @@ const MAGICQ_OSC_RECEIVE_PORT = Number(
 );
 const MAGICQ_OSC_SEND_PORT = Number(process.env.MAGICQ_OSC_SEND_PORT || 9000);
 const BUTTON_CONTROLLER_PORT =
-  process.env.BUTTON_CONTROLLER_PORT || "/dev/cu.usbmodem1101";
+  process.env.BUTTON_CONTROLLER_PORT || "/dev/cu.usbmodem101";
 
 // Default brightness values
 const DEFAULT_INACTIVE_BRIGHTNESS = 25;
@@ -295,7 +295,15 @@ class WebSocketService {
     const type = exec.type;
 
     if (type === "fader") {
-      exec.value = Math.min(valueInput / 255, 0.9999);
+      const nextValue = Math.min(
+        Math.round((valueInput / 255) * 100) / 100,
+        0.9999
+      );
+
+      if (nextValue === exec.value) {
+        return;
+      }
+      exec.value = nextValue;
     } else if (type === "toggle" && valueInput > 0) {
       exec.value = lastValue === 0 ? 1 : 0;
     } else if (type === "toggle") {
