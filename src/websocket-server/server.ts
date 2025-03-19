@@ -168,6 +168,7 @@ class WebSocketService {
               });
               if ("executors" in magicqData) {
                 this.showLoaded = true;
+                this.stopButtonBlink();
                 this.updateButtonColors(magicqData.executors);
                 for (const exec of Object.values(magicqData.executors)) {
                   this.state[exec.number] = {
@@ -175,6 +176,8 @@ class WebSocketService {
                     value: this.state[exec.number]?.value || 0,
                   };
                 }
+                // Update button status after show file is loaded
+                this.updateButtonStatus();
               }
               break;
 
@@ -294,7 +297,7 @@ class WebSocketService {
     } else {
       this.stopButtonBlink();
       // Set first button to green to indicate showfile loaded
-      this.buttonController.setButtonColor(0, "0F0");
+      this.buttonController.setButtonColor(0, "000");
     }
   }
 
