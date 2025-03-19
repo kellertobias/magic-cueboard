@@ -8,6 +8,19 @@
  * - Serial communication with host
  * - Configurable brightness levels
  * - Support for multiple simultaneous button presses
+ * - 2 potentiometers for continuous control
+ *
+ * Protocol:
+ * Host to Device:
+ * - Cxxx:rgb - Set color for button xxx (000-999) to rgb (hex)
+ * - Axxx:1/0 - Set button xxx active/inactive
+ * - Bii:aa   - Set brightness (ii=inactive, aa=active) in hex
+ * - X        - Host connected signal
+ *
+ * Device to Host:
+ * - Pxxx     - Button pressed (xxx=000-999)
+ * - Rxxx     - Button released
+ * - Vxx:yy   - Potentiometer value (xx=00-99, yy=hex value)
  */
 
 #include <Adafruit_NeoPixel.h>
@@ -20,10 +33,15 @@
 #define BLINK_INTERVAL 500 // Status LED blink interval in ms
 
 // Matrix Configuration
+// The button matrix uses 8 columns and 5 rows for a total of 40 buttons
+// This is physically arranged as two 5x4 matrices side by side
 const uint8_t colPins[8] = {10, 16, 14, 15, A0, A1, 8, 9}; // Column pins
 const uint8_t rowPins[5] = {3, 4, 5, 6, 7};                // Row pins
 
 // LED Mapping
+// Maps logical button positions to physical LED positions on the WS2812B strip
+// The strip is wired in a serpentine pattern, so this mapping ensures the LEDs
+// light up in the correct positions relative to the buttons
 const uint8_t ledMap[40] = {
     39, 38, 37, 36, 35, // First row
     34, 33, 32, 31, 30, // Second row
@@ -36,6 +54,9 @@ const uint8_t ledMap[40] = {
 };
 
 // Button Matrix Mapping
+// Maps physical button positions in the matrix to logical button numbers
+// This allows the buttons to be wired in any order while maintaining
+// consistent button numbering for the host
 const uint8_t btnMap[8][5] = {
     {0, 1, 2, 3, 4},      // Row 1
     {5, 6, 7, 8, 9},      // Row 2
@@ -50,31 +71,38 @@ const uint8_t btnMap[8][5] = {
 // Potentiometer Configuration
 #define POT1_PIN A2    // First potentiometer
 #define POT2_PIN A3    // Second potentiometer
-#define POT_DEADZONE 5 // Deadzone for potentiometer changes
+#define POT_DEADZONE 5 // Deadzone for potentiometer changes to reduce noise
 
 // Global Objects and Variables
-Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
-bool buttonStates[40] = {false}; // Current physical state of each button
-bool buttonActive[40] = {false}; // Whether each button is in active state
-uint32_t buttonColors[40] = {0}; // Current color for each button
+Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800); // LED strip object
+bool buttonStates[40] = {false};                                  // Current physical state of each button
+bool buttonActive[40] = {false};                                  // Whether each button is in active state
+uint32_t buttonColors[40] = {0};                                  // Current color for each button
 
+// Brightness levels for different button states
 uint8_t brightnessInactive = 25;       // Brightness for inactive buttons
 uint8_t brightnessActive = 40;         // Brightness for active buttons
-const uint8_t brightnessPressed = 255; // Brightness for pressed buttons
+const uint8_t brightnessPressed = 255; // Brightness for pressed buttons (always full)
 
-bool hostConnected = false;
-unsigned long lastBlinkTime = 0;
-bool blinkState = false;
+// Connection status and LED blinking
+bool hostConnected = false;      // Whether the host is connected
+unsigned long lastBlinkTime = 0; // Last time the status LED blinked
+bool blinkState = false;         // Current state of the status LED
 
 // Serial communication buffer
-char serialBuffer[10];
-uint8_t bufferIndex = 0;
+char serialBuffer[10];   // Buffer for incoming serial commands
+uint8_t bufferIndex = 0; // Current position in the buffer
 
-// Add to Global Objects and Variables section
-uint16_t lastPotValues[2] = {0, 0}; // Last read potentiometer values
+// Potentiometer tracking
+uint16_t lastPotValues[2] = {0, 0};   // Last read raw potentiometer values
+uint8_t lastScaledValues[2] = {0, 0}; // Last sent scaled values (0-255)
 
 /**
  * Initial setup of the controller
+ * - Initializes LED strip
+ * - Configures pin modes for button matrix
+ * - Sets up serial communication
+ * - Initializes all LEDs to off
  */
 void setup()
 {
@@ -107,6 +135,10 @@ void setup()
 
 /**
  * Main program loop
+ * - Handles connection status LED blinking
+ * - Processes incoming serial commands
+ * - Scans button matrix for changes
+ * - Scans potentiometers for changes
  */
 void loop()
 {
@@ -117,7 +149,7 @@ void loop()
         if (now - lastBlinkTime >= BLINK_INTERVAL)
         {
             blinkState = !blinkState;
-            strip.setPixelColor(ledMap[4], blinkState ? strip.Color(255, 0, 0) : 0);
+            strip.setPixelColor(ledMap[0], blinkState ? strip.Color(255, 0, 0) : 0);
             strip.show();
             lastBlinkTime = now;
         }
@@ -142,7 +174,7 @@ void loop()
     // Scan button matrix
     scanButtons();
 
-    // Add this line:
+    // Scan potentiometers
     scanPotentiometers();
 
     // Small delay to reduce noise
@@ -150,7 +182,7 @@ void loop()
 }
 
 /**
- * Process incoming serial commands
+ * Process incoming serial commands from the host
  * Commands:
  * - Cxxx:rgb - Set color for button xxx (000-999) to rgb (hex)
  * - Axxx:1/0 - Set button xxx active/inactive
@@ -201,6 +233,8 @@ void processCommand(char *cmd)
 
 /**
  * Parse a 3-digit hex color (RGB)
+ * Each digit represents a color component (0-F)
+ * Returns a 32-bit color value for the LED strip
  */
 uint32_t parseColor(const char *hex)
 {
@@ -212,6 +246,7 @@ uint32_t parseColor(const char *hex)
 
 /**
  * Parse a 2-digit hex number
+ * Returns a byte value (0-255)
  */
 uint8_t parseHex(const char *hex)
 {
@@ -220,6 +255,7 @@ uint8_t parseHex(const char *hex)
 
 /**
  * Convert a hex digit to its numeric value
+ * Handles both uppercase and lowercase hex digits
  */
 uint8_t parseHexDigit(char hex)
 {
@@ -234,6 +270,10 @@ uint8_t parseHexDigit(char hex)
 
 /**
  * Update the LED for a specific button
+ * Handles three states:
+ * 1. Pressed: White at full brightness
+ * 2. Active: Assigned color at active brightness
+ * 3. Inactive: Assigned color at inactive brightness
  */
 void updateButtonLED(uint8_t button)
 {
@@ -259,6 +299,7 @@ void updateButtonLED(uint8_t button)
 
 /**
  * Update all LEDs
+ * Called when brightness levels change
  */
 void updateAllLEDs()
 {
@@ -270,6 +311,8 @@ void updateAllLEDs()
 
 /**
  * Scan the button matrix for changes
+ * Uses row-column scanning to detect button presses
+ * Sends button state changes to the host
  */
 void scanButtons()
 {
@@ -303,7 +346,9 @@ void scanButtons()
 
 /**
  * Scan potentiometers for changes
- * Sends potentiometer values to host when they change significantly
+ * Sends potentiometer values to host only when the scaled byte value changes
+ * Uses a deadzone to reduce noise
+ * Values are scaled from 0-1023 to 0-255
  */
 void scanPotentiometers()
 {
@@ -311,14 +356,14 @@ void scanPotentiometers()
 
     for (uint8_t i = 0; i < 2; i++)
     {
-        // Only send if there's a significant change
-        if (abs(potValues[i] - lastPotValues[i]) > POT_DEADZONE ||
-            potValues[i] == 0 || potValues[i] == 1023)
-        {
-            lastPotValues[i] = potValues[i];
+        // Scale to 0-255
+        uint8_t scaledValue = map(potValues[i], 0, 1023, 0, 255);
 
-            // Scale to 0-255 and send to host
-            uint8_t scaledValue = map(potValues[i], 0, 1023, 0, 255);
+        // Only send if the scaled value has changed
+        if (scaledValue != lastScaledValues[i])
+        {
+            lastScaledValues[i] = scaledValue;
+            lastPotValues[i] = potValues[i];
 
             // Send potentiometer value to host (format: Vxx:yy where xx is pot number, yy is hex value)
             Serial.print("V");
