@@ -41,14 +41,6 @@ export default function Home() {
           <div className="col-span-5 h-[320px]">
             <ExecutorGrid openSettings={() => setIsOptionsOpen(true)} />
           </div>
-
-          {/* Options Button */}
-          <button
-            onClick={() => setIsOptionsOpen(true)}
-            className="absolute top-4 right-4 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
-          >
-            Options
-          </button>
         </main>
 
         <OptionsModal

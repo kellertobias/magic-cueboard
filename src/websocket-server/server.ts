@@ -4,7 +4,8 @@ import { ChildProcess } from "./services/child-process";
 import { MagicQHttpService } from "./services/magicq-http";
 import { MagicQOscService } from "./services/magicq-osc";
 import { ButtonControllerService } from "./services/button-controller";
-import { existsSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
+import { join } from "path";
 
 dotenv.config();
 
@@ -19,6 +20,13 @@ const MAGICQ_OSC_SEND_PORT = Number(process.env.MAGICQ_OSC_SEND_PORT || 9000);
 const BUTTON_CONTROLLER_PORT =
   process.env.BUTTON_CONTROLLER_PORT || "/dev/cu.usbmodem1101";
 
+// Default brightness values
+const DEFAULT_INACTIVE_BRIGHTNESS = 25;
+const DEFAULT_ACTIVE_BRIGHTNESS = 40;
+
+// Path to store brightness settings
+const BRIGHTNESS_SETTINGS_PATH = join(__dirname, "brightness-settings.json");
+
 class WebSocketService {
   private wss: WebSocketServer;
   private childProcess: ChildProcess;
@@ -28,6 +36,7 @@ class WebSocketService {
   private isShuttingDown = false;
   private showLoaded = false;
   private buttonBlinkInterval: NodeJS.Timeout | null = null;
+  private brightnessSettings: { inactive: number; active: number };
 
   private state: Record<
     number,
@@ -35,6 +44,9 @@ class WebSocketService {
   > = {};
 
   constructor() {
+    // Load brightness settings from file or use defaults
+    this.brightnessSettings = this.loadBrightnessSettings();
+
     console.log(`
 +----------------------------------+
 | LISTEN_IP: ${LISTEN_IP}            |
@@ -43,6 +55,8 @@ class WebSocketService {
 | MAGICQ_OSC_RECEIVE_PORT: ${MAGICQ_OSC_RECEIVE_PORT} |
 | MAGICQ_OSC_SEND_PORT: ${MAGICQ_OSC_SEND_PORT} |
 | BUTTON_CONTROLLER_PORT: ${BUTTON_CONTROLLER_PORT} |
+| INACTIVE_BRIGHTNESS: ${this.brightnessSettings.inactive} |
+| ACTIVE_BRIGHTNESS: ${this.brightnessSettings.active} |
 +----------------------------------+
 `);
 
@@ -121,6 +135,14 @@ class WebSocketService {
       // Send initial connection success message
       ws.send(JSON.stringify({ type: "connection", status: "connected" }));
 
+      // Send current brightness values to new client
+      ws.send(
+        JSON.stringify({
+          type: "brightness-values",
+          data: this.brightnessSettings,
+        })
+      );
+
       // Handle client disconnection
       ws.on("close", () => {
         console.log("Client disconnected from WebSocket");
@@ -176,6 +198,44 @@ class WebSocketService {
               }
               break;
 
+            case "set-brightness":
+              // Update button controller brightness
+              try {
+                if (
+                  message.data?.inactive !== undefined &&
+                  message.data?.active !== undefined
+                ) {
+                  this.brightnessSettings = {
+                    inactive: message.data.inactive,
+                    active: message.data.active,
+                  };
+                  this.buttonController.setBrightness(
+                    this.brightnessSettings.inactive,
+                    this.brightnessSettings.active
+                  );
+                  this.saveBrightnessSettings();
+                }
+              } catch (error) {
+                console.error("Error setting brightness:", error);
+                ws.send(
+                  JSON.stringify({
+                    type: "error",
+                    error: "Failed to set brightness",
+                  })
+                );
+              }
+              break;
+
+            case "get-brightness":
+              // Send current brightness values to client
+              ws.send(
+                JSON.stringify({
+                  type: "brightness-values",
+                  data: this.brightnessSettings,
+                })
+              );
+              break;
+
             default:
               console.warn("Unknown message type:", message.type);
           }
@@ -202,6 +262,12 @@ class WebSocketService {
 
     this.magicqOsc.start();
     this.buttonController.start();
+
+    // Set initial brightness values
+    this.buttonController.setBrightness(
+      this.brightnessSettings.inactive,
+      this.brightnessSettings.active
+    );
 
     console.log(`WebSocket server running on ws://localhost:${WS_PORT}`);
   }
@@ -279,6 +345,43 @@ class WebSocketService {
         }
       }
     });
+  }
+
+  /**
+   * Loads brightness settings from file or returns defaults
+   */
+  private loadBrightnessSettings(): { inactive: number; active: number } {
+    try {
+      if (existsSync(BRIGHTNESS_SETTINGS_PATH)) {
+        const settings = JSON.parse(
+          readFileSync(BRIGHTNESS_SETTINGS_PATH, "utf-8")
+        );
+        return {
+          inactive: settings.inactive ?? DEFAULT_INACTIVE_BRIGHTNESS,
+          active: settings.active ?? DEFAULT_ACTIVE_BRIGHTNESS,
+        };
+      }
+    } catch (error) {
+      console.error("Error loading brightness settings:", error);
+    }
+    return {
+      inactive: DEFAULT_INACTIVE_BRIGHTNESS,
+      active: DEFAULT_ACTIVE_BRIGHTNESS,
+    };
+  }
+
+  /**
+   * Saves brightness settings to file
+   */
+  private saveBrightnessSettings(): void {
+    try {
+      writeFileSync(
+        BRIGHTNESS_SETTINGS_PATH,
+        JSON.stringify(this.brightnessSettings, null, 2)
+      );
+    } catch (error) {
+      console.error("Error saving brightness settings:", error);
+    }
   }
 
   public async stop(): Promise<void> {

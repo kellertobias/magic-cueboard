@@ -27,7 +27,8 @@ export type WSMessage =
         number: number;
         value: number;
       };
-    };
+    }
+  | { type: "brightness-values"; data: { inactive: number; active: number } };
 
 const darkenColor = (color: string, amount: number) => {
   // Handle both 3 and 6 digit hex codes
