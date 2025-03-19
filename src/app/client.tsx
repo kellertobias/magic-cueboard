@@ -1,16 +1,19 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 
 import { SPLMeter } from "@/components/spl-meter";
 import { ExecutorGrid } from "@/components/executor-grid";
 import { ConnectionStatus } from "@/components/status";
+import { OptionsModal } from "@/components/options-modal";
 import clsx from "clsx";
 import { Clock } from "@/components/clock";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
 console.log("Importing");
 
 export default function Home() {
+  const [isOptionsOpen, setIsOptionsOpen] = useState(false);
+
   return (
     <WebSocketProvider>
       <div className="flex justify-center items-center h-screen">
@@ -36,9 +39,22 @@ export default function Home() {
 
           {/* Right Section - 4/5 width */}
           <div className="col-span-5 h-[320px]">
-            <ExecutorGrid />
+            <ExecutorGrid openSettings={() => setIsOptionsOpen(true)} />
           </div>
+
+          {/* Options Button */}
+          <button
+            onClick={() => setIsOptionsOpen(true)}
+            className="absolute top-4 right-4 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
+          >
+            Options
+          </button>
         </main>
+
+        <OptionsModal
+          isOpen={isOptionsOpen}
+          onClose={() => setIsOptionsOpen(false)}
+        />
       </div>
     </WebSocketProvider>
   );

@@ -3,7 +3,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { ChildProcess } from "./services/child-process";
 import { MagicQHttpService } from "./services/magicq-http";
 import { MagicQOscService } from "./services/magicq-osc";
-import { MidiService } from "./services/midi";
+import { ButtonControllerService } from "./services/button-controller";
 import { existsSync } from "fs";
 
 dotenv.config();
@@ -16,15 +16,18 @@ const MAGICQ_OSC_RECEIVE_PORT = Number(
   process.env.MAGICQ_OSC_RECEIVE_PORT || 8000
 );
 const MAGICQ_OSC_SEND_PORT = Number(process.env.MAGICQ_OSC_SEND_PORT || 9000);
+const BUTTON_CONTROLLER_PORT =
+  process.env.BUTTON_CONTROLLER_PORT || "/dev/cu.usbmodem1101";
 
 class WebSocketService {
   private wss: WebSocketServer;
   private childProcess: ChildProcess;
   private magicq: MagicQHttpService;
   private magicqOsc: MagicQOscService;
-  private midi: MidiService;
-
+  private buttonController: ButtonControllerService;
   private isShuttingDown = false;
+  private showLoaded = false;
+  private buttonBlinkInterval: NodeJS.Timeout | null = null;
 
   private state: Record<
     number,
@@ -39,6 +42,7 @@ class WebSocketService {
 | MAGICQ_HTTP_PORT: ${MAGICQ_HTTP_PORT} |
 | MAGICQ_OSC_RECEIVE_PORT: ${MAGICQ_OSC_RECEIVE_PORT} |
 | MAGICQ_OSC_SEND_PORT: ${MAGICQ_OSC_SEND_PORT} |
+| BUTTON_CONTROLLER_PORT: ${BUTTON_CONTROLLER_PORT} |
 +----------------------------------+
 `);
 
@@ -56,7 +60,39 @@ class WebSocketService {
       receiveAddress: LISTEN_IP,
       sendAddress: MAGICQ_IP,
     });
-    this.midi = new MidiService();
+    this.buttonController = new ButtonControllerService(BUTTON_CONTROLLER_PORT);
+
+    // Handle button controller events
+    this.buttonController.on("connected", () => {
+      console.log("Button controller connected");
+      this.updateButtonStatus();
+    });
+
+    this.buttonController.on("disconnected", () => {
+      console.log("Button controller disconnected");
+      this.stopButtonBlink();
+    });
+
+    this.buttonController.on("buttonPressed", (button) => {
+      const exec = button + 1; // Map button 0 to executor 1
+      if (this.state[exec]) {
+        this.handleExecutorCommand(exec, 1);
+      }
+    });
+
+    this.buttonController.on("buttonReleased", (button) => {
+      const exec = button + 1; // Map button 0 to executor 1
+      if (this.state[exec]?.type === "flash") {
+        this.handleExecutorCommand(exec, 0);
+      }
+    });
+
+    this.buttonController.on("potValue", (pot, value) => {
+      const exec = 41 + pot; // Map pot 0 to executor 41
+      if (this.state[exec]?.type === "fader") {
+        this.handleExecutorCommand(exec, value / 255);
+      }
+    });
 
     this.magicqOsc.on("osc", (data) => {
       this.state[data.exec] = {
@@ -71,6 +107,11 @@ class WebSocketService {
           value: data.value,
         },
       });
+
+      // Update button state if it's a button executor
+      if (data.exec <= 40) {
+        this.buttonController.setButtonActive(data.exec - 1, data.value > 0);
+      }
     });
 
     // Setup WebSocket connection handling
@@ -104,6 +145,8 @@ class WebSocketService {
                 data: magicqData,
               });
               if ("executors" in magicqData) {
+                this.showLoaded = true;
+                this.updateButtonColors(magicqData.executors);
                 for (const exec of Object.values(magicqData.executors)) {
                   this.state[exec.number] = {
                     type: exec.number > 40 ? "fader" : exec.type,
@@ -111,7 +154,6 @@ class WebSocketService {
                   };
                 }
               }
-
               break;
 
             case "exec":
@@ -156,44 +198,74 @@ class WebSocketService {
         "-i 50",
         "-f",
       ]);
-    } else {
-      // this.childProcess.start("npx", ["tsx", "src/mock/mockMeasurement.ts"]);
     }
 
     this.magicqOsc.start();
-
-    this.midi.start();
-    this.midi.on("midi", (data) => {
-      const exec = data.exec;
-      const type = this.state[exec]?.type || exec > 40 ? "fader" : "toggle";
-      this.state[exec] = this.state[exec] || {
-        type,
-        value: 0,
-      };
-      const lastValue = this.state[exec].value;
-      let value = 0;
-      if (type === "fader") {
-        value = Math.min(data.value / 127, 0.9999);
-      } else if (type === "toggle" && data.value > 0) {
-        value = lastValue === 0 ? 1 : 0;
-      } else if (type === "toggle") {
-        return; // ignore note off for toggle
-      } else if (type === "flash" || type === "other") {
-        value = data.value > 0 ? 1 : 0;
-      }
-
-      this.state[exec].value = value;
-      this.magicqOsc.sendExecutorCommand(exec, value);
-      this.broadcast({
-        type: "val",
-        data: {
-          number: exec,
-          value,
-        },
-      });
-    });
+    this.buttonController.start();
 
     console.log(`WebSocket server running on ws://localhost:${WS_PORT}`);
+  }
+
+  /**
+   * Updates button colors based on showfile data
+   */
+  private updateButtonColors(executors: Record<number, any>): void {
+    for (const [exec, data] of Object.entries(executors)) {
+      const button = Number(exec) - 1;
+      if (button >= 0 && button < 40) {
+        const color = data.color || "000";
+        this.buttonController.setButtonColor(button, color);
+      }
+    }
+  }
+
+  /**
+   * Updates button status based on showfile state
+   */
+  private updateButtonStatus(): void {
+    if (!this.showLoaded) {
+      this.startButtonBlink();
+    } else {
+      this.stopButtonBlink();
+      // Set first button to green to indicate showfile loaded
+      this.buttonController.setButtonColor(0, "0F0");
+    }
+  }
+
+  /**
+   * Starts blinking the first button in yellow
+   */
+  private startButtonBlink(): void {
+    this.stopButtonBlink();
+    let isYellow = true;
+    this.buttonBlinkInterval = setInterval(() => {
+      this.buttonController.setButtonColor(0, isYellow ? "FF0" : "000");
+      isYellow = !isYellow;
+    }, 500);
+  }
+
+  /**
+   * Stops the button blink interval
+   */
+  private stopButtonBlink(): void {
+    if (this.buttonBlinkInterval) {
+      clearInterval(this.buttonBlinkInterval);
+      this.buttonBlinkInterval = null;
+    }
+  }
+
+  /**
+   * Handles executor commands from buttons and potentiometers
+   */
+  private handleExecutorCommand(exec: number, value: number): void {
+    this.magicqOsc.sendExecutorCommand(exec, value);
+    this.broadcast({
+      type: "val",
+      data: {
+        number: exec,
+        value,
+      },
+    });
   }
 
   private broadcast(data: any): void {
@@ -223,7 +295,11 @@ class WebSocketService {
     }
 
     // Stop all services
-    await Promise.all([this.childProcess.stop(), this.magicqOsc.stop()]);
+    await Promise.all([
+      this.childProcess.stop(),
+      this.magicqOsc.stop(),
+      this.buttonController.stop(),
+    ]);
 
     // Close the WebSocket server
     await new Promise<void>((resolve, reject) => {

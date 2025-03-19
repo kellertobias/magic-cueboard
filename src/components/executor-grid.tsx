@@ -3,8 +3,9 @@
 import clsx from "clsx";
 import { useCallback, useEffect, useState } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { btnBaseClasses } from "./button";
 
-interface Executor {
+export interface Executor {
   number: number;
   name: string;
   type: "toggle" | "flash" | "fader" | "other";
@@ -12,7 +13,7 @@ interface Executor {
   dotColor: string | null;
 }
 
-type WSMessage =
+export type WSMessage =
   | {
       type: "show-setup";
       data: {
@@ -27,9 +28,6 @@ type WSMessage =
         value: number;
       };
     };
-
-const btnBaseClasses =
-  "border-2 rounded-md flex flex-col items-center justify-center text-center font-mono font-semibold text-sm p-2 px-4 relative transition-colors duration-200";
 
 const darkenColor = (color: string, amount: number) => {
   // Handle both 3 and 6 digit hex codes
@@ -158,11 +156,10 @@ function ExecutorPoti({
   );
 }
 
-export function ExecutorGrid() {
+export function ExecutorGrid({ openSettings }: { openSettings: () => void }) {
   const [active, setActive] = useState<Record<number, number>>({});
   const [executors, setExecutors] = useState<Record<number, Executor>>([]);
   const [showName, setShowName] = useState("<Unknown Show>");
-  const [reloading, setReloading] = useState(false);
 
   const handleMessage = useCallback((message: WSMessage) => {
     switch (message.type) {
@@ -170,7 +167,6 @@ export function ExecutorGrid() {
         console.log(message.data);
         setShowName(message.data.showName || "<Unknown Show>");
         setExecutors(message.data.executors || []);
-        setReloading(false);
         break;
       case "val":
         setActive((prev) => ({
@@ -180,7 +176,7 @@ export function ExecutorGrid() {
     }
   }, []);
 
-  const { sendMessage } = useWebSocket(handleMessage, []);
+  useWebSocket(handleMessage, []);
 
   return (
     <div className="flex flex-col gap-4 h-full px-4 py-6">
@@ -189,11 +185,10 @@ export function ExecutorGrid() {
           <button
             className={clsx(btnBaseClasses, "border-gray-600 text-gray-300")}
             onClick={() => {
-              setReloading(true);
-              sendMessage({ type: "reload-executors" });
+              openSettings();
             }}
           >
-            {reloading ? "Reloading..." : "Reload"}
+            Open Settings
           </button>
           <span className="text-gray-300 font-mono text-sm">
             Current Show: {showName}

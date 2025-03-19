@@ -10,6 +10,7 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@serialport/parser-readline": "^13.0.0",
     "@tailwindcss/postcss": "^4.0.4",
     "@types/jsdom": "^21.1.7",
     "@types/ws": "^8.5.10",
@@ -22,12 +23,14 @@
     "react": "^18",
     "react-dom": "^18",
     "reflect-metadata": "^0.2.2",
+    "serialport": "^10.5.0",
     "ws": "^8.16.0"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/serialport": "^8.0.5",
     "autoprefixer": "^10.0.1",
     "concurrently": "^8.2.2",
     "eslint": "^8",
