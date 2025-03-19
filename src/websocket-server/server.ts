@@ -88,24 +88,17 @@ class WebSocketService {
     });
 
     this.buttonController.on("buttonPressed", (button) => {
-      const exec = button + 1; // Map button 0 to executor 1
-      if (this.state[exec]) {
-        this.handleExecutorCommand(exec, 1);
-      }
+      console.log("Button pressed:", button);
+      this.handleExecutorCommand(button, 1);
     });
 
     this.buttonController.on("buttonReleased", (button) => {
-      const exec = button + 1; // Map button 0 to executor 1
-      if (this.state[exec]?.type === "flash") {
-        this.handleExecutorCommand(exec, 0);
-      }
+      console.log("Button released:", button);
+      this.handleExecutorCommand(button, 0);
     });
 
     this.buttonController.on("potValue", (pot, value) => {
-      const exec = 41 + pot; // Map pot 0 to executor 41
-      if (this.state[exec]?.type === "fader") {
-        this.handleExecutorCommand(exec, value / 255);
-      }
+      this.handleExecutorCommand(41 + pot, value / 255);
     });
 
     this.magicqOsc.on("osc", (data) => {
@@ -279,6 +272,7 @@ class WebSocketService {
    * Updates button colors based on showfile data
    */
   private updateButtonColors(executors: Record<number, any>): void {
+    console.log("Updating button colors", executors);
     for (const [exec, data] of Object.entries(executors)) {
       const button = Number(exec) - 1;
       if (button >= 0 && button < 40) {
@@ -326,8 +320,28 @@ class WebSocketService {
   /**
    * Handles executor commands from buttons and potentiometers
    */
-  private handleExecutorCommand(exec: number, value: number): void {
-    this.magicqOsc.sendExecutorCommand(exec, value);
+  private handleExecutorCommand(execNumber: number, valueInput: number): void {
+    const exec = this.state[execNumber] || {
+      type: execNumber > 40 ? "fader" : "toggle",
+      value: 0,
+    };
+    this.state[execNumber] = exec;
+
+    const lastValue = exec.value;
+    const type = exec.type;
+    let value = 0;
+
+    if (type === "fader") {
+      exec.value = Math.min(valueInput / 127, 0.9999);
+    } else if (type === "toggle" && valueInput > 0) {
+      exec.value = lastValue === 0 ? 1 : 0;
+    } else if (type === "toggle") {
+      return; // ignore note off for toggle
+    } else if (type === "flash" || type === "other") {
+      exec.value = valueInput > 0 ? 1 : 0;
+    }
+
+    this.magicqOsc.sendExecutorCommand(execNumber, value);
     this.broadcast({
       type: "val",
       data: {
