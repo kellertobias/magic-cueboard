@@ -64,7 +64,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-900 p-6 rounded-lg shadow-xl w-96">
+      <div className="bg-gray-900 p-6 rounded-lg shadow-xl w-[600px]">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-white">Settings</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
@@ -72,17 +72,36 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
           </button>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-sm font-medium text-gray-400 mb-2">
-              Device IP
-            </h3>
-            <p className="text-white">
-              {process.env.NEXT_PUBLIC_WS_URL || "localhost:3001"}
-            </p>
+        <div className="flex gap-8">
+          {/* Left side - Info and Reload */}
+          <div className="flex-1 space-y-4">
+            <div>
+              <h3 className="text-sm font-medium text-gray-400 mb-2">
+                Device IP
+              </h3>
+              <p className="text-white">
+                {process.env.NEXT_PUBLIC_WS_URL || "localhost:3001"}
+              </p>
+            </div>
+
+            <div>
+              <button
+                className={clsx(
+                  btnBaseClasses,
+                  "border-gray-600 text-gray-300"
+                )}
+                onClick={() => {
+                  setReloading(true);
+                  sendMessage({ type: "reload-executors" });
+                }}
+              >
+                {reloading ? "Reloading..." : "Reload from MagicQ"}
+              </button>
+            </div>
           </div>
 
-          <div>
+          {/* Right side - Brightness Controls */}
+          <div className="flex-1">
             <h3 className="text-sm font-medium text-gray-400 mb-2">
               Button Brightness
             </h3>
@@ -122,18 +141,6 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
                 <div className="text-xs text-gray-400">{activeBrightness}</div>
               </div>
             </div>
-          </div>
-
-          <div>
-            <button
-              className={clsx(btnBaseClasses, "border-gray-600 text-gray-300")}
-              onClick={() => {
-                setReloading(true);
-                sendMessage({ type: "reload-executors" });
-              }}
-            >
-              {reloading ? "Reloading..." : "Reload from MagicQ"}
-            </button>
           </div>
         </div>
       </div>
