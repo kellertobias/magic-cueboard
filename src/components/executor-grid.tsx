@@ -165,7 +165,6 @@ export function ExecutorGrid({ openSettings }: { openSettings: () => void }) {
   const handleMessage = useCallback((message: WSMessage) => {
     switch (message.type) {
       case "show-setup":
-        console.log(message.data);
         setShowName(message.data.showName || "<Unknown Show>");
         setExecutors(message.data.executors || []);
         break;

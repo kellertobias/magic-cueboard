@@ -35,7 +35,6 @@ class WebSocketService {
   private buttonController: ButtonControllerService;
   private isShuttingDown = false;
   private showLoaded = false;
-  private buttonBlinkInterval: NodeJS.Timeout | null = null;
   private brightnessSettings: { inactive: number; active: number };
 
   private state: Record<
@@ -79,26 +78,28 @@ class WebSocketService {
     // Handle button controller events
     this.buttonController.on("connected", () => {
       console.log("Button controller connected");
-      this.updateButtonStatus();
+
+      // Set initial brightness values
+      this.buttonController.setBrightness(
+        this.brightnessSettings.inactive,
+        this.brightnessSettings.active
+      );
     });
 
     this.buttonController.on("disconnected", () => {
       console.log("Button controller disconnected");
-      this.stopButtonBlink();
     });
 
     this.buttonController.on("buttonPressed", (button) => {
-      console.log("Button pressed:", button);
       this.handleExecutorCommand(button, 1);
     });
 
     this.buttonController.on("buttonReleased", (button) => {
-      console.log("Button released:", button);
       this.handleExecutorCommand(button, 0);
     });
 
     this.buttonController.on("potValue", (pot, value) => {
-      this.handleExecutorCommand(41 + pot, value / 255);
+      this.handleExecutorCommand(41 + pot, value);
     });
 
     this.magicqOsc.on("osc", (data) => {
@@ -117,6 +118,7 @@ class WebSocketService {
 
       // Update button state if it's a button executor
       if (data.exec <= 40) {
+        console.log("Setting button active:", data.exec - 1, data.value > 0);
         this.buttonController.setButtonActive(data.exec - 1, data.value > 0);
       }
     });
@@ -161,7 +163,6 @@ class WebSocketService {
               });
               if ("executors" in magicqData) {
                 this.showLoaded = true;
-                this.stopButtonBlink();
                 this.updateButtonColors(magicqData.executors);
                 for (const exec of Object.values(magicqData.executors)) {
                   this.state[exec.number] = {
@@ -169,8 +170,6 @@ class WebSocketService {
                     value: this.state[exec.number]?.value || 0,
                   };
                 }
-                // Update button status after show file is loaded
-                this.updateButtonStatus();
               }
               break;
 
@@ -283,41 +282,6 @@ class WebSocketService {
   }
 
   /**
-   * Updates button status based on showfile state
-   */
-  private updateButtonStatus(): void {
-    if (!this.showLoaded) {
-      this.startButtonBlink();
-    } else {
-      this.stopButtonBlink();
-      // Set first button to green to indicate showfile loaded
-      this.buttonController.setButtonColor(0, "000");
-    }
-  }
-
-  /**
-   * Starts blinking the first button in yellow
-   */
-  private startButtonBlink(): void {
-    this.stopButtonBlink();
-    let isYellow = true;
-    this.buttonBlinkInterval = setInterval(() => {
-      this.buttonController.setButtonColor(0, isYellow ? "FF0" : "000");
-      isYellow = !isYellow;
-    }, 500);
-  }
-
-  /**
-   * Stops the button blink interval
-   */
-  private stopButtonBlink(): void {
-    if (this.buttonBlinkInterval) {
-      clearInterval(this.buttonBlinkInterval);
-      this.buttonBlinkInterval = null;
-    }
-  }
-
-  /**
    * Handles executor commands from buttons and potentiometers
    */
   private handleExecutorCommand(execNumber: number, valueInput: number): void {
@@ -329,10 +293,9 @@ class WebSocketService {
 
     const lastValue = exec.value;
     const type = exec.type;
-    let value = 0;
 
     if (type === "fader") {
-      exec.value = Math.min(valueInput / 127, 0.9999);
+      exec.value = Math.min(valueInput / 255, 0.9999);
     } else if (type === "toggle" && valueInput > 0) {
       exec.value = lastValue === 0 ? 1 : 0;
     } else if (type === "toggle") {
@@ -341,12 +304,21 @@ class WebSocketService {
       exec.value = valueInput > 0 ? 1 : 0;
     }
 
-    this.magicqOsc.sendExecutorCommand(execNumber, value);
+    if (exec.type === "toggle") {
+      console.log(
+        "Setting button active (In Button Handler):",
+        execNumber - 1,
+        exec.value > 0
+      );
+      this.buttonController.setButtonActive(execNumber - 1, exec.value > 0);
+    }
+
+    this.magicqOsc.sendExecutorCommand(execNumber, exec.value);
     this.broadcast({
       type: "val",
       data: {
-        number: exec,
-        value,
+        number: execNumber,
+        value: exec.value,
       },
     });
   }

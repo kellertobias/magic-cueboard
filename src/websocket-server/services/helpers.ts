@@ -10,7 +10,7 @@ export function makeExecutorNumber(index: number): number {
   // the executor buttons each take two rows.
   // so executor 1 has the index 1, 2 has 2, while 11 has 21, 12 has 22, etc.
 
-  const execColNumber = index % 10;
-  const execRowNumber = Math.floor(index / 10);
+  const execColNumber = ((index - 1) % 10) + 1;
+  const execRowNumber = Math.floor((index - 1) / 10);
   return execColNumber + execRowNumber * 20;
 }
