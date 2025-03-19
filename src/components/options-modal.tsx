@@ -96,6 +96,8 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
     }
   }, [isOpen, sendMessage]);
 
+  useEffect(() => {}, []);
+
   if (!isOpen) return null;
 
   return (
@@ -103,7 +105,10 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
       <div className="bg-gray-900 p-6 rounded-lg shadow-xl w-[600px]">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-white">Settings</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white -m-4 p-4"
+          >
             ✕
           </button>
         </div>
@@ -115,9 +120,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
               <h3 className="text-sm font-medium text-gray-400 mb-2">
                 Device IP
               </h3>
-              <p className="text-white">
-                {process.env.NEXT_PUBLIC_WS_URL || "localhost:3001"}
-              </p>
+              <p className="text-white">10.99.0.2</p>
             </div>
 
             <div>
