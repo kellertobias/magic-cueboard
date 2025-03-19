@@ -9,16 +9,49 @@ interface OptionsModalProps {
   onClose: () => void;
 }
 
-// Default brightness values
-const DEFAULT_INACTIVE_BRIGHTNESS = 25;
-const DEFAULT_ACTIVE_BRIGHTNESS = 40;
+// Default brightness values (in percentage)
+const DEFAULT_INACTIVE_BRIGHTNESS = 10;
+const DEFAULT_ACTIVE_BRIGHTNESS = 20;
+
+const valueMap: Record<string, string> = {};
+for (let i = 0; i < 32; i++) {
+  valueMap[i] = `${Math.ceil(i / 2)}`;
+}
+for (let i = 32; i < 64; i++) {
+  valueMap[i] = `${i - 16}`;
+}
+for (let i = 64; i < 100; i++) {
+  valueMap[i] = `${Math.ceil((i - 64) * 5.5 + 48)}`;
+}
+valueMap[100] = `${255}`;
+
+/**
+ * Converts a percentage (0-100) to a brightness value (0-255) using exponential scaling
+ */
+function percentageToBrightness(percentage: number): number {
+  return Number(valueMap[percentage]);
+}
+
+/**
+ * Converts a brightness value (0-255) to a percentage (0-100) using inverse exponential scaling
+ */
+function brightnessToPercentage(brightness: number): number {
+  // find the value in the valueMap that is closest to the brightness
+  const closest = Object.keys(valueMap).reduce((prev: any, curr: any) => {
+    return Math.abs(Number(curr) - brightness) <
+      Math.abs(Number(prev) - brightness)
+      ? curr
+      : prev;
+  }, 0);
+  return Number(closest);
+}
 
 export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
   const [reloading, setReloading] = useState(false);
-  const [inactiveBrightness, setInactiveBrightness] = useState(
+  const [inactivePercentage, setInactivePercentage] = useState(
     DEFAULT_INACTIVE_BRIGHTNESS
   );
-  const [activeBrightness, setActiveBrightness] = useState(
+  const [activePercentage, setActivePercentage] = useState(
     DEFAULT_ACTIVE_BRIGHTNESS
   );
 
@@ -31,10 +64,10 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
       case "brightness-values":
         // Update local state when receiving brightness values from server
         if (message.data?.inactive !== undefined) {
-          setInactiveBrightness(message.data.inactive);
+          setInactivePercentage(brightnessToPercentage(message.data.inactive));
         }
         if (message.data?.active !== undefined) {
-          setActiveBrightness(message.data.active);
+          setActivePercentage(brightnessToPercentage(message.data.active));
         }
         break;
     }
@@ -47,7 +80,10 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
     (inactive: number, active: number) => {
       sendMessage({
         type: "set-brightness",
-        data: { inactive, active },
+        data: {
+          inactive: percentageToBrightness(inactive),
+          active: percentageToBrightness(active),
+        },
       });
     },
     [sendMessage]
@@ -111,17 +147,17 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
                 <input
                   type="range"
                   min="0"
-                  max="255"
-                  value={inactiveBrightness}
+                  max="100"
+                  value={inactivePercentage}
                   onChange={(e) => {
                     const value = parseInt(e.target.value);
-                    setInactiveBrightness(value);
-                    handleBrightnessChange(value, activeBrightness);
+                    setInactivePercentage(value);
+                    handleBrightnessChange(value, activePercentage);
                   }}
                   className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                 />
                 <div className="text-xs text-gray-400">
-                  {inactiveBrightness}
+                  {inactivePercentage}%
                 </div>
               </div>
               <div>
@@ -129,16 +165,16 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
                 <input
                   type="range"
                   min="0"
-                  max="255"
-                  value={activeBrightness}
+                  max="100"
+                  value={activePercentage}
                   onChange={(e) => {
                     const value = parseInt(e.target.value);
-                    setActiveBrightness(value);
-                    handleBrightnessChange(inactiveBrightness, value);
+                    setActivePercentage(value);
+                    handleBrightnessChange(inactivePercentage, value);
                   }}
                   className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                 />
-                <div className="text-xs text-gray-400">{activeBrightness}</div>
+                <div className="text-xs text-gray-400">{activePercentage}%</div>
               </div>
             </div>
           </div>

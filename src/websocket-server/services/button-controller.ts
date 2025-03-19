@@ -202,8 +202,38 @@ export class ButtonControllerService extends EventEmitter {
   /**
    * Sets the brightness levels for inactive and active states
    */
+  private lastBrightnessUpdate = 0;
+  private pendingBrightness: { inactive: number; active: number } | null = null;
+  private readonly BRIGHTNESS_THROTTLE_MS = 500; // 500ms = max 2 calls per second
+
+  /**
+   * Sets the brightness levels for inactive and active states
+   * Rate limited to max 2 calls per second, will use most recent values
+   */
   public setBrightness(inactive: number, active: number): void {
     if (!this.isConnected) return;
+
+    const now = Date.now();
+    this.pendingBrightness = { inactive, active };
+
+    if (now - this.lastBrightnessUpdate >= this.BRIGHTNESS_THROTTLE_MS) {
+      // Enough time has passed, update immediately
+      this.updateBrightness();
+    } else if (!this.pendingBrightness) {
+      // Schedule update for when throttle period ends
+      setTimeout(() => {
+        this.updateBrightness();
+      }, this.BRIGHTNESS_THROTTLE_MS - (now - this.lastBrightnessUpdate));
+    }
+  }
+
+  /**
+   * Actually sends the brightness update command with the most recent values
+   */
+  private updateBrightness(): void {
+    if (!this.pendingBrightness) return;
+
+    const { inactive, active } = this.pendingBrightness;
     this.brightnessInactive = inactive;
     this.brightnessActive = active;
     this.sendCommand(
@@ -211,6 +241,9 @@ export class ButtonControllerService extends EventEmitter {
         .toString(16)
         .padStart(2, "0")}`
     );
+
+    this.lastBrightnessUpdate = Date.now();
+    this.pendingBrightness = null;
   }
 
   /**

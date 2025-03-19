@@ -9,7 +9,6 @@ import { OptionsModal } from "@/components/options-modal";
 import clsx from "clsx";
 import { Clock } from "@/components/clock";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
-console.log("Importing");
 
 export default function Home() {
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
