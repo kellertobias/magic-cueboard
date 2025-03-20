@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently --names \"SRV,WEB\" \"tsx src/websocket-server/index.ts\" \"next dev\"",
+    "dev": "concurrently --names \"SRV,WEB\" \"tsx src/websocket-server/index.ts\" \"sleep 1 && next dev\"",
     "build": "next build",
     "start": "NODE_ENV=production concurrently --kill-others-on-fail \"tsx src/websocket-server/index.ts\" \"next start\"",
     "lint": "next lint",
