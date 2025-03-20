@@ -133,6 +133,7 @@ export class WebSocketService {
    */
   private setupMagicQOscEvents(): void {
     this.magicqOsc.on("osc", (data) => {
+      console.log("[OSC] Received message in server:", data);
       this.state[data.exec] = {
         type: data.type,
         value: data.value,
