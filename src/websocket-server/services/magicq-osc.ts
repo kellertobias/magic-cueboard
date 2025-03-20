@@ -172,13 +172,17 @@ export class MagicQOscService extends EventEmitter {
       // Check if it's an executor update
       const match = message.address.match(/^\/exec\/1\/(\d+)$/);
       if (match && message.args.length > 0) {
-        const executorNumber = getExecutorNumber(parseInt(match[1], 10));
+        const exec = parseInt(match[1], 10);
+        const isInfoExec = exec % 20 > 10;
+        const executorNumber = getExecutorNumber(exec);
         const value = message.args[0] as number;
 
-        this.emit("osc", {
-          exec: executorNumber,
-          value,
-        });
+        if (!isInfoExec) {
+          this.emit("osc", {
+            exec: executorNumber,
+            value,
+          });
+        }
       }
 
       // Emit the OSC message for other handlers
