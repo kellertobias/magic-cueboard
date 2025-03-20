@@ -1,93 +1,101 @@
-import dotenv from "dotenv";
 import { WebSocketServer, WebSocket } from "ws";
 import { ChildProcess } from "./services/child-process";
-import { MagicQHttpService } from "./services/magicq-http";
+import { MagicQData, MagicQHttpService } from "./services/magicq-http";
 import { MagicQOscService } from "./services/magicq-osc";
 import { ButtonControllerService } from "./services/button-controller";
 import { existsSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
 
-dotenv.config();
-
-const WS_PORT = Number(process.env.WS_PORT || 3001);
-const LISTEN_IP = process.env.LISTEN_IP || "localhost";
-const MAGICQ_IP = process.env.MAGICQ_IP || "localhost";
-const MAGICQ_HTTP_PORT = Number(process.env.MAGICQ_HTTP_PORT || 8080);
-const MAGICQ_OSC_RECEIVE_PORT = Number(
-  process.env.MAGICQ_OSC_RECEIVE_PORT || 8000
-);
-const MAGICQ_OSC_SEND_PORT = Number(process.env.MAGICQ_OSC_SEND_PORT || 9000);
-const BUTTON_CONTROLLER_PORT =
-  process.env.BUTTON_CONTROLLER_PORT || "/dev/cu.usbmodem101";
-
-// Default brightness values
-const DEFAULT_INACTIVE_BRIGHTNESS = 25;
-const DEFAULT_ACTIVE_BRIGHTNESS = 40;
-
-// Path to store brightness settings
-const BRIGHTNESS_SETTINGS_PATH = join(__dirname, "brightness-settings.json");
-
-class WebSocketService {
+export class WebSocketService {
   private wss: WebSocketServer;
   private childProcess: ChildProcess;
-  private magicq: MagicQHttpService;
+  private magicqHttp: MagicQHttpService;
   private magicqOsc: MagicQOscService;
   private buttonController: ButtonControllerService;
-  private isShuttingDown = false;
-  private showLoaded = false;
   private brightnessSettings: { inactive: number; active: number };
+  private brightnessSettingsPath: string;
 
   private state: Record<
     number,
     { type: "toggle" | "flash" | "fader" | "other"; value: number }
   > = {};
+  private magicqData: MagicQData | { error: string } | null = null;
 
-  constructor() {
+  constructor({
+    listenIp,
+    magicqIp,
+    magicqHttpPort,
+    magicqOscReceivePort,
+    magicqOscSendPort,
+    buttonControllerPort,
+    inactiveBrightness,
+    activeBrightness,
+    brightnessSettingsPath,
+    wsPort,
+  }: {
+    listenIp: string;
+    magicqIp: string;
+    magicqHttpPort: number;
+    magicqOscReceivePort: number;
+    magicqOscSendPort: number;
+    buttonControllerPort: string | null;
+    inactiveBrightness: number;
+    activeBrightness: number;
+    brightnessSettingsPath: string;
+    wsPort: number;
+  }) {
     // Load brightness settings from file or use defaults
-    this.brightnessSettings = this.loadBrightnessSettings();
+    this.brightnessSettingsPath = brightnessSettingsPath;
+    this.brightnessSettings = this.loadBrightnessSettings(
+      inactiveBrightness,
+      activeBrightness
+    );
 
     console.log(`
-+----------------------------------+
-| LISTEN_IP: ${LISTEN_IP}            |
-| MAGICQ_IP: ${MAGICQ_IP}            |
-| MAGICQ_HTTP_PORT: ${MAGICQ_HTTP_PORT} |
-| MAGICQ_OSC_RECEIVE_PORT: ${MAGICQ_OSC_RECEIVE_PORT} |
-| MAGICQ_OSC_SEND_PORT: ${MAGICQ_OSC_SEND_PORT} |
-| BUTTON_CONTROLLER_PORT: ${BUTTON_CONTROLLER_PORT} |
-| INACTIVE_BRIGHTNESS: ${this.brightnessSettings.inactive} |
-| ACTIVE_BRIGHTNESS: ${this.brightnessSettings.active} |
-+----------------------------------+
-`);
+      +----------------------------------+
+      | LISTEN_IP: ${listenIp}            |
+      | MAGICQ_IP: ${magicqIp}            |
+      | MAGICQ_HTTP_PORT: ${magicqHttpPort} |
+      | MAGICQ_OSC_RECEIVE_PORT: ${magicqOscReceivePort} |
+      | MAGICQ_OSC_SEND_PORT: ${magicqOscSendPort} |
+      | BUTTON_CONTROLLER_PORT: ${buttonControllerPort} |
+      | INACTIVE_BRIGHTNESS: ${inactiveBrightness} |
+      | ACTIVE_BRIGHTNESS: ${activeBrightness} |
+      +----------------------------------+
+      `);
 
-    // Initialize WebSocket server on its own port
-    this.wss = new WebSocketServer({ port: WS_PORT });
+    // Initialize WebSocket server
+    this.wss = new WebSocketServer({ port: wsPort });
 
-    // Initialize services
+    // Initialize other services
     this.childProcess = new ChildProcess();
-    this.magicq = new MagicQHttpService(
-      `http://${MAGICQ_IP}:${MAGICQ_HTTP_PORT}`
+    this.magicqHttp = new MagicQHttpService(
+      `http://${magicqIp}:${magicqHttpPort}`
     );
     this.magicqOsc = new MagicQOscService({
-      receivePort: MAGICQ_OSC_RECEIVE_PORT,
-      sendPort: MAGICQ_OSC_SEND_PORT,
-      receiveAddress: LISTEN_IP,
-      sendAddress: MAGICQ_IP,
+      receivePort: magicqOscReceivePort,
+      sendPort: magicqOscSendPort,
+      receiveAddress: listenIp,
+      sendAddress: magicqIp,
     });
-    this.buttonController = new ButtonControllerService(BUTTON_CONTROLLER_PORT);
+    this.buttonController = new ButtonControllerService(buttonControllerPort);
 
-    // Handle button controller events
+    // Setup event handlers
+    this.setupButtonControllerEvents();
+    this.setupMagicQOscEvents();
+
+    this.setupWebSocketServer();
+    this.startServices();
+  }
+
+  /**
+   * Sets up event handlers for the button controller
+   */
+  private setupButtonControllerEvents(): void {
     this.buttonController.on("connected", () => {
-      console.log("Button controller connected");
-
-      // Set initial brightness values
       this.buttonController.setBrightness(
         this.brightnessSettings.inactive,
         this.brightnessSettings.active
       );
-    });
-
-    this.buttonController.on("disconnected", () => {
-      console.log("Button controller disconnected");
     });
 
     this.buttonController.on("buttonPressed", (button) => {
@@ -101,7 +109,12 @@ class WebSocketService {
     this.buttonController.on("potValue", (pot, value) => {
       this.handleExecutorCommand(41 + pot, value);
     });
+  }
 
+  /**
+   * Sets up event handlers for the MagicQ OSC service
+   */
+  private setupMagicQOscEvents(): void {
     this.magicqOsc.on("osc", (data) => {
       this.state[data.exec] = {
         type: data.type,
@@ -122,8 +135,12 @@ class WebSocketService {
         this.buttonController.setButtonActive(data.exec - 1, data.value > 0);
       }
     });
+  }
 
-    // Setup WebSocket connection handling
+  /**
+   * Sets up the WebSocket server and its event handlers
+   */
+  private setupWebSocketServer(): void {
     this.wss.on("connection", (ws) => {
       console.log("Client connected to WebSocket");
 
@@ -138,6 +155,9 @@ class WebSocketService {
         })
       );
 
+      // send show setup
+      this.sendShowSetup();
+
       // Handle client disconnection
       ws.on("close", () => {
         console.log("Client disconnected from WebSocket");
@@ -150,104 +170,138 @@ class WebSocketService {
 
       // Handle incoming messages
       ws.on("message", async (data) => {
-        try {
-          const message = JSON.parse(data.toString());
-
-          switch (message.type) {
-            case "reload-executors":
-              // Fetch names from MagicQ and broadcast to clients
-              const magicqData = await this.magicq.fetchData();
-              this.broadcast({
-                type: "show-setup",
-                data: magicqData,
-              });
-              if ("executors" in magicqData) {
-                this.showLoaded = true;
-                this.updateButtonColors(magicqData.executors);
-                for (const exec of Object.values(magicqData.executors)) {
-                  this.state[exec.number] = {
-                    type: exec.number > 40 ? "fader" : exec.type,
-                    value: this.state[exec.number]?.value || 0,
-                  };
-                }
-              }
-              break;
-
-            case "exec":
-              // Forward OSC messages to MagicQ
-              try {
-                if (message.address && message.value !== undefined) {
-                  await this.magicqOsc.sendExecutorCommand(
-                    message.address,
-                    message.value
-                  );
-                }
-              } catch (error) {
-                console.error("Error sending OSC message:", error);
-                ws.send(
-                  JSON.stringify({
-                    type: "error",
-                    error: "Failed to send OSC message",
-                  })
-                );
-              }
-              break;
-
-            case "set-brightness":
-              // Update button controller brightness
-              try {
-                if (
-                  message.data?.inactive !== undefined &&
-                  message.data?.active !== undefined
-                ) {
-                  this.brightnessSettings = {
-                    inactive: message.data.inactive,
-                    active: message.data.active,
-                  };
-                  this.buttonController.setBrightness(
-                    this.brightnessSettings.inactive,
-                    this.brightnessSettings.active
-                  );
-                  this.saveBrightnessSettings();
-                }
-              } catch (error) {
-                console.error("Error setting brightness:", error);
-                ws.send(
-                  JSON.stringify({
-                    type: "error",
-                    error: "Failed to set brightness",
-                  })
-                );
-              }
-              break;
-
-            case "get-brightness":
-              // Send current brightness values to client
-              ws.send(
-                JSON.stringify({
-                  type: "brightness-values",
-                  data: this.brightnessSettings,
-                })
-              );
-              break;
-
-            default:
-              console.warn("Unknown message type:", message.type);
-          }
-        } catch (error) {
-          console.error("Error processing WebSocket message:", error);
-        }
+        await this.handleWebSocketMessage(ws, data);
       });
     });
+  }
 
-    // Broadcast child process data
-    this.childProcess.on("data", (data) => {
-      if (!this.isShuttingDown) {
-        this.broadcast({ type: "spl", data });
+  /**
+   * Handles incoming WebSocket messages
+   */
+  private async handleWebSocketMessage(
+    ws: WebSocket,
+    data: any
+  ): Promise<void> {
+    try {
+      const message = JSON.parse(data.toString());
+
+      switch (message.type) {
+        case "reload-executors":
+          await this.handleReloadExecutors();
+          break;
+
+        case "exec":
+          await this.handleExecutorMessage(ws, message);
+          break;
+
+        case "set-brightness":
+          await this.handleSetBrightness(ws, message);
+          break;
+
+        case "get-brightness":
+          ws.send(
+            JSON.stringify({
+              type: "brightness-values",
+              data: this.brightnessSettings,
+            })
+          );
+          break;
+
+        default:
+          console.warn("Unknown message type:", message.type);
       }
-    });
+    } catch (error) {
+      console.error("Error processing WebSocket message:", error);
+    }
+  }
 
-    // Start services
+  /**
+   * Handles the reload-executors message
+   */
+  private async handleReloadExecutors(): Promise<void> {
+    this.magicqData = await this.magicqHttp.fetchData();
+    this.sendShowSetup();
+    if (this.magicqData && "executors" in this.magicqData) {
+      for (const exec of Object.values(this.magicqData.executors)) {
+        this.state[exec.number] = {
+          type: exec.number > 40 ? "fader" : exec.type,
+          value: this.state[exec.number]?.value || 0,
+        };
+      }
+      this.updateButtonColors(this.magicqData.executors);
+    }
+  }
+
+  private async sendShowSetup(): Promise<void> {
+    this.broadcast({
+      type: "show-setup",
+      data: this.magicqData,
+    });
+  }
+
+  /**
+   * Handles the executor message
+   */
+  private async handleExecutorMessage(
+    ws: WebSocket,
+    message: any
+  ): Promise<void> {
+    try {
+      if (message.address && message.value !== undefined) {
+        await this.magicqOsc.sendExecutorCommand(
+          message.address,
+          message.value
+        );
+      }
+    } catch (error) {
+      console.error("Error sending OSC message:", error);
+      ws.send(
+        JSON.stringify({
+          type: "error",
+          error: "Failed to send OSC message",
+        })
+      );
+    }
+  }
+
+  /**
+   * Handles the set-brightness message
+   */
+  private async handleSetBrightness(
+    ws: WebSocket,
+    message: any
+  ): Promise<void> {
+    try {
+      if (
+        message.data?.inactive !== undefined &&
+        message.data?.active !== undefined
+      ) {
+        this.brightnessSettings = {
+          inactive: message.data.inactive,
+          active: message.data.active,
+        };
+        this.buttonController.setBrightness(
+          this.brightnessSettings.inactive,
+          this.brightnessSettings.active
+        );
+        this.saveBrightnessSettings();
+      }
+    } catch (error) {
+      console.error("Error setting brightness:", error);
+      ws.send(
+        JSON.stringify({
+          type: "error",
+          error: "Failed to set brightness",
+        })
+      );
+    }
+  }
+
+  /**
+   * Starts all required services
+   */
+  private startServices(): void {
+    // Start child process if available
     if (existsSync("/home/keller/repos/gm1356/splread")) {
       this.childProcess.start("/home/keller/repos/gm1356/splread", [
         "-i 50",
@@ -255,6 +309,7 @@ class WebSocketService {
       ]);
     }
 
+    // Start other services
     this.magicqOsc.start();
     this.buttonController.start();
 
@@ -264,7 +319,7 @@ class WebSocketService {
       this.brightnessSettings.active
     );
 
-    console.log(`WebSocket server running on ws://localhost:${WS_PORT}`);
+    console.log(`WebSocket server running`);
   }
 
   /**
@@ -347,23 +402,26 @@ class WebSocketService {
   /**
    * Loads brightness settings from file or returns defaults
    */
-  private loadBrightnessSettings(): { inactive: number; active: number } {
+  private loadBrightnessSettings(
+    inactiveBrightness: number,
+    activeBrightness: number
+  ): { inactive: number; active: number } {
     try {
-      if (existsSync(BRIGHTNESS_SETTINGS_PATH)) {
+      if (existsSync(this.brightnessSettingsPath)) {
         const settings = JSON.parse(
-          readFileSync(BRIGHTNESS_SETTINGS_PATH, "utf-8")
+          readFileSync(this.brightnessSettingsPath, "utf-8")
         );
         return {
-          inactive: settings.inactive ?? DEFAULT_INACTIVE_BRIGHTNESS,
-          active: settings.active ?? DEFAULT_ACTIVE_BRIGHTNESS,
+          inactive: settings.inactive ?? inactiveBrightness,
+          active: settings.active ?? activeBrightness,
         };
       }
     } catch (error) {
       console.error("Error loading brightness settings:", error);
     }
     return {
-      inactive: DEFAULT_INACTIVE_BRIGHTNESS,
-      active: DEFAULT_ACTIVE_BRIGHTNESS,
+      inactive: inactiveBrightness,
+      active: activeBrightness,
     };
   }
 
@@ -373,7 +431,7 @@ class WebSocketService {
   private saveBrightnessSettings(): void {
     try {
       writeFileSync(
-        BRIGHTNESS_SETTINGS_PATH,
+        this.brightnessSettingsPath,
         JSON.stringify(this.brightnessSettings, null, 2)
       );
     } catch (error) {
@@ -383,7 +441,6 @@ class WebSocketService {
 
   public async stop(): Promise<void> {
     console.log("Shutting down WebSocket service...");
-    this.isShuttingDown = true;
 
     // Close all client connections first
     for (const client of this.wss.clients) {
@@ -416,22 +473,3 @@ class WebSocketService {
     console.log("WebSocket service shutdown complete");
   }
 }
-
-// Handle process termination
-const wsService = new WebSocketService();
-
-async function shutdown(signal: string) {
-  console.log(`Received ${signal}. Starting graceful shutdown...`);
-  try {
-    await wsService.stop();
-    process.exit(0);
-  } catch (error) {
-    console.error("Error during shutdown:", error);
-    process.exit(1);
-  }
-}
-
-// Handle different termination signals
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGQUIT", () => shutdown("SIGQUIT"));

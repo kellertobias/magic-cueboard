@@ -79,7 +79,7 @@ export class ButtonControllerService extends EventEmitter {
   private brightnessInactive = 25;
   private brightnessActive = 40;
 
-  constructor(private portPath: string) {
+  constructor(private portPath: string | null) {
     super();
   }
 
@@ -88,7 +88,12 @@ export class ButtonControllerService extends EventEmitter {
    */
   public start(): void {
     if (this.port) {
-      console.warn("Button controller already connected");
+      console.warn("[Hardware] Button controller already connected");
+      return;
+    }
+
+    if (!this.portPath) {
+      console.warn("[Hardware] No port path provided");
       return;
     }
 
@@ -100,20 +105,20 @@ export class ButtonControllerService extends EventEmitter {
     this.parser = this.port.pipe(new ReadlineParser({ delimiter: "\n" }));
 
     this.port.on("open", () => {
-      console.log("Connected to button controller");
+      console.log("[Hardware] Connected to button controller");
       this.isConnected = true;
       this.emit("connected");
       this.initializeDevice();
     });
 
     this.port.on("error", (err: Error) => {
-      console.error("Button controller error:", err);
+      console.error("[Hardware] Button controller error:", err);
       this.isConnected = false;
       this.emit("disconnected");
     });
 
     this.port.on("close", () => {
-      console.log("Button controller disconnected");
+      console.log("[Hardware] Button controller disconnected");
       this.isConnected = false;
       this.emit("disconnected");
     });
@@ -250,7 +255,7 @@ export class ButtonControllerService extends EventEmitter {
    * Handles incoming messages from the device
    */
   private handleMessage(message: string): void {
-    console.log("Received message:", message);
+    console.log("[Hardware] Received message:", message);
     if (message.startsWith("P")) {
       // Button pressed
       const button = parseInt(message.slice(1), 10);
@@ -273,7 +278,7 @@ export class ButtonControllerService extends EventEmitter {
    */
   private sendCommand(command: string): void {
     if (!this.isConnected || !this.port) return;
-    console.log("Sending command:", command);
+    console.log("[Hardware] Sending command:", command);
     this.port.write(command + "\n");
   }
 
@@ -297,7 +302,7 @@ export class ButtonControllerService extends EventEmitter {
    * External numbers are arranged in 10x4 grid, internal in 5x8 grid
    */
   private externalToInternalButton(button: number): number {
-    console.log("External to internal button:", button);
+    console.log("[Hardware] External to internal button:", button);
     return serverToController.get(button + 1)! - 1;
   }
 }

@@ -1,7 +1,7 @@
 import { JSDOM } from "jsdom";
 import { getExecutorNumber } from "./helpers";
 
-interface MagicQData {
+export interface MagicQData {
   showName: string | null;
   executors: Record<
     number,

@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently --names \"API,WEB\" \"tsx src/websocket-server/server.ts\" \"next dev\"",
+    "dev": "concurrently --names \"SRV,WEB\" \"tsx src/websocket-server/index.ts\" \"next dev\"",
     "build": "next build",
-    "start": "NODE_ENV=production concurrently --kill-others-on-fail \"tsx src/websocket-server/server.ts\" \"next start\"",
+    "start": "NODE_ENV=production concurrently --kill-others-on-fail \"tsx src/websocket-server/index.ts\" \"next start\"",
     "lint": "next lint",
     "test": "vitest"
   },
