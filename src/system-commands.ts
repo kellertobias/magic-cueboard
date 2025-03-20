@@ -3,7 +3,7 @@ export const systemCommands = {
   "restart-server":
     "echo 'Restarting server...' && sleep 1 && sudo systemctl restart lightstrip.service",
   "update-software":
-    "sudo -u keller /home/keller/repos/lightmonitorstrip/build.sh",
+    "sudo -u keller /bin/bash /home/keller/repos/lightmonitorstrip/build.sh",
   "flash-firmware":
     "cd /home/keller/repos/lightmonitorstrip/hardware/firmware && arduino-cli upload -p /dev/ttyACM0 -b arduino:avr:leonardo .",
 };
