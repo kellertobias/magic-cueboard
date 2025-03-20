@@ -245,7 +245,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
                   )}
                   onClick={() => handleSystemCommand("restart-device")}
                 >
-                  Restart Device
+                  Reboot
                 </button>
               </div>
             </div>

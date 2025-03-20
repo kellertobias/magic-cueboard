@@ -64,7 +64,7 @@ export function TerminalModal({
           className="flex-1 overflow-y-auto font-mono text-sm text-gray-300 whitespace-pre-wrap bg-black p-4 rounded-t-lg"
           style={{ maxHeight: "calc(100vh - 12rem)" }}
         >
-          {!output ? (
+          {!output || output.length === 0 ? (
             <>
               <div>
                 <span className="text-yellow-400">$ {command}:</span>
@@ -95,7 +95,7 @@ export function TerminalModal({
 
         {/* Terminal Footer */}
         <div className="flex justify-end gap-2 p-4 bg-gray-900 rounded-b-lg border-t border-gray-800">
-          {!output ? (
+          {!output || output.length === 0 ? (
             <>
               <button
                 onClick={onClose}
