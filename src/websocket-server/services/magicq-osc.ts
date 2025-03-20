@@ -140,7 +140,7 @@ export class MagicQOscService extends EventEmitter {
     this.feedbackInterval = setInterval(() => {
       try {
         console.log("[OSC] Sending feedback request");
-        const message = new OSC.Message("/feedback/exec");
+        const message = new OSC.Message("/feedback/exec", true);
         this.oscSender.send(message);
       } catch (error) {
         console.error("[OSC] Error sending feedback request:", error);
@@ -149,7 +149,7 @@ export class MagicQOscService extends EventEmitter {
 
     // Send initial feedback request
     console.log("[OSC] Sending feedback request");
-    const message = new OSC.Message("/feedback/exec");
+    const message = new OSC.Message("/feedback/exec", true);
     this.oscSender.send(message);
   }
 
