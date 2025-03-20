@@ -310,6 +310,19 @@ export class WebSocketService {
       return;
     }
 
+    if (
+      this.magicqData &&
+      "showName" in this.magicqData &&
+      this.magicqData.showName
+    ) {
+      console.log("Show already loaded, aborting...");
+      if (this.showLoadingInterval) {
+        clearInterval(this.showLoadingInterval);
+        this.showLoadingInterval = null;
+      }
+      return;
+    }
+
     this.isShowLoadingAttemptInProgress = true;
     try {
       console.log("~~~ Attempting to load show data...");

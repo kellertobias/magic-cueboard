@@ -28,7 +28,10 @@ export class MagicQOscService extends EventEmitter {
 
     this.osc.on("open", () => {
       console.log(
-        `(open) OSC server started on ${this.connection.receivePort}`
+        `[OSC] server started on ${this.connection.receiveAddress}:${this.connection.receivePort}`
+      );
+      console.log(
+        `[OSC] will send to ${this.connection.sendAddress}:${this.connection.sendPort}`
       );
     });
   }
@@ -42,8 +45,13 @@ export class MagicQOscService extends EventEmitter {
       host: this.connection.receiveAddress,
       port: this.connection.receivePort,
     });
-    console.log(`OSC server started on ${this.connection.receivePort}`);
-    this.osc.on("*", this.handleOSCMessage.bind(this));
+    console.log(
+      `[OSC] server starting on ${this.connection.receiveAddress}:${this.connection.receivePort}`
+    );
+    this.osc.on("*", (message: OSC.Message) => {
+      console.log("Received OSC message:", message);
+      this.handleOSCMessage(message);
+    });
 
     // Start feedback interval
     this.startFeedbackInterval();
