@@ -3,12 +3,13 @@ import OSC from "osc-js";
 import { getExecutorNumber, makeExecutorNumber } from "./helpers";
 
 /**
- * Service for handling OSC and MIDI communications
- * Includes special handling for MagicQ executor commands
+ * Service for handling OSC communications with MagicQ
+ * Uses separate OSC objects for sending and receiving messages
  */
 export class MagicQOscService extends EventEmitter {
   private feedbackInterval: NodeJS.Timeout | null = null;
-  private osc: OSC;
+  private oscReceiver: OSC;
+  private oscSender: OSC;
 
   constructor(
     private connection: {
@@ -20,38 +21,60 @@ export class MagicQOscService extends EventEmitter {
   ) {
     super();
 
-    this.osc = new OSC({
+    // Initialize OSC receiver
+    this.oscReceiver = new OSC({
       plugin: new OSC.DatagramPlugin({
         type: "udp4",
-      }),
+        open: {
+          host: this.connection.receiveAddress,
+          port: this.connection.receivePort,
+        },
+      } as any),
     });
 
-    this.osc.on("open", () => {
+    // Initialize OSC sender
+    this.oscSender = new OSC({
+      plugin: new OSC.DatagramPlugin({
+        type: "udp4",
+        send: {
+          host: this.connection.sendAddress,
+          port: this.connection.sendPort,
+        },
+      } as any),
+    });
+
+    // Set up receiver event handlers
+    this.oscReceiver.on("open", () => {
       console.log(
-        `[OSC] server started on ${this.connection.receiveAddress}:${this.connection.receivePort}`
+        `[OSC] receiver started on ${this.connection.receiveAddress}:${this.connection.receivePort}`
       );
+    });
+
+    this.oscReceiver.on("*", (message: OSC.Message) => {
+      console.log("Received OSC message:", message);
+      this.handleOSCMessage(message);
+    });
+
+    // Set up sender event handlers
+    this.oscSender.on("open", () => {
       console.log(
-        `[OSC] will send to ${this.connection.sendAddress}:${this.connection.sendPort}`
+        `[OSC] sender configured to send to ${this.connection.sendAddress}:${this.connection.sendPort}`
       );
     });
   }
 
   /**
-   * Starts the OSC server and feedback interval
+   * Starts the OSC receiver and feedback interval
    */
   public start(): void {
-    // Start OSC server
-    this.osc.open({
+    // Start OSC receiver
+    this.oscReceiver.open({
       host: this.connection.receiveAddress,
       port: this.connection.receivePort,
     });
     console.log(
-      `[OSC] server starting on ${this.connection.receiveAddress}:${this.connection.receivePort}`
+      `[OSC] receiver starting on ${this.connection.receiveAddress}:${this.connection.receivePort}`
     );
-    this.osc.on("*", (message: OSC.Message) => {
-      console.log("Received OSC message:", message);
-      this.handleOSCMessage(message);
-    });
 
     // Start feedback interval
     this.startFeedbackInterval();
@@ -67,23 +90,24 @@ export class MagicQOscService extends EventEmitter {
       this.feedbackInterval = null;
     }
 
-    // Close OSC connection
-    this.osc.close();
+    // Close OSC connections
+    this.oscReceiver.close();
+    this.oscSender.close();
   }
 
+  /**
+   * Sends an OSC message using the sender
+   */
   public sendOSC(path: string, value: number | string): void {
     const message = new OSC.Message(path, Number(value) * 1.0);
     message.types = "f";
     console.log("Sending OSC message:", message);
-    this.osc.send(message, {
-      host: this.connection.sendAddress,
-      port: this.connection.sendPort,
-    });
+    this.oscSender.send(message);
   }
 
   /**
    * Sends an executor command to MagicQ
-   * @param address OSC address (e.g., "/exec/1/5")
+   * @param exec Executor number
    * @param value Float value between 0 and 1
    */
   public async sendExecutorCommand(
@@ -117,21 +141,16 @@ export class MagicQOscService extends EventEmitter {
       try {
         console.log("Sending feedback request");
         const message = new OSC.Message("/feedback/exec");
-        this.osc.send(message, {
-          host: this.connection.sendAddress,
-          port: this.connection.sendPort,
-        });
+        this.oscSender.send(message);
       } catch (error) {
         console.error("Error sending feedback request:", error);
       }
     }, 60000); // 1 minute
 
+    // Send initial feedback request
     console.log("Sending feedback request");
     const message = new OSC.Message("/feedback/exec");
-    this.osc.send(message, {
-      host: this.connection.sendAddress,
-      port: this.connection.sendPort,
-    });
+    this.oscSender.send(message);
   }
 
   /**

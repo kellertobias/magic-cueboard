@@ -85,9 +85,23 @@ export class WebSocketService {
     // Setup event handlers
     this.setupButtonControllerEvents();
     this.setupMagicQOscEvents();
-
     this.setupWebSocketServer();
-    this.startServices();
+
+    this.magicqOsc.start();
+    this.buttonController.start();
+
+    // Start child process if available
+    if (existsSync("/home/keller/repos/gm1356/splread")) {
+      this.childProcess.start("/home/keller/repos/gm1356/splread", [
+        "-i 50",
+        "-f",
+      ]);
+    }
+
+    // Start periodic show loading
+    this.startPeriodicShowLoading();
+
+    console.log(`Server fully started`);
   }
 
   /**
@@ -360,28 +374,6 @@ export class WebSocketService {
     this.showLoadingInterval = setInterval(() => {
       this.attemptLoadShow();
     }, 15000); // 15 seconds
-  }
-
-  /**
-   * Starts all required services
-   */
-  private startServices(): void {
-    // Start child process if available
-    if (existsSync("/home/keller/repos/gm1356/splread")) {
-      this.childProcess.start("/home/keller/repos/gm1356/splread", [
-        "-i 50",
-        "-f",
-      ]);
-    }
-
-    // Start other services
-    this.magicqOsc.start();
-    this.buttonController.start();
-
-    // Start periodic show loading
-    this.startPeriodicShowLoading();
-
-    console.log(`WebSocket server running`);
   }
 
   /**
