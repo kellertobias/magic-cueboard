@@ -20,6 +20,9 @@ export class WebSocketService {
   > = {};
   private magicqData: MagicQData | { error: string } | null = null;
 
+  private isShowLoadingAttemptInProgress: boolean = false;
+  private showLoadingInterval: NodeJS.Timeout | null = null;
+
   constructor({
     listenIp,
     magicqIp,
@@ -298,6 +301,55 @@ export class WebSocketService {
   }
 
   /**
+   * Attempts to load the show data and updates the state
+   * @returns Promise that resolves when the show is loaded or rejects with an error
+   */
+  private async attemptLoadShow(): Promise<void> {
+    if (this.isShowLoadingAttemptInProgress) {
+      console.log("Show loading attempt already in progress, skipping...");
+      return;
+    }
+
+    this.isShowLoadingAttemptInProgress = true;
+    try {
+      console.log("~~~ Attempting to load show data...");
+      this.handleReloadExecutors();
+      if (
+        !this.magicqData ||
+        "error" in this.magicqData ||
+        !this.magicqData.showName
+      ) {
+        console.log("~~~ No show data available yet");
+        return;
+      }
+      console.log("~~~ Show data loaded successfully", this.magicqData);
+
+      // Clear the interval since we successfully loaded the show
+      if (this.showLoadingInterval) {
+        clearInterval(this.showLoadingInterval);
+        this.showLoadingInterval = null;
+      }
+    } catch (error) {
+      console.error("Error loading show:", String(error));
+    } finally {
+      this.isShowLoadingAttemptInProgress = false;
+    }
+  }
+
+  /**
+   * Starts periodic show loading attempts
+   */
+  private startPeriodicShowLoading(): void {
+    // Initial attempt
+    this.attemptLoadShow();
+
+    // Set up interval for subsequent attempts
+    this.showLoadingInterval = setInterval(() => {
+      this.attemptLoadShow();
+    }, 15000); // 15 seconds
+  }
+
+  /**
    * Starts all required services
    */
   private startServices(): void {
@@ -313,11 +365,8 @@ export class WebSocketService {
     this.magicqOsc.start();
     this.buttonController.start();
 
-    // Set initial brightness values
-    this.buttonController.setBrightness(
-      this.brightnessSettings.inactive,
-      this.brightnessSettings.active
-    );
+    // Start periodic show loading
+    this.startPeriodicShowLoading();
 
     console.log(`WebSocket server running`);
   }
@@ -441,6 +490,12 @@ export class WebSocketService {
 
   public async stop(): Promise<void> {
     console.log("Shutting down WebSocket service...");
+
+    // Clear show loading interval
+    if (this.showLoadingInterval) {
+      clearInterval(this.showLoadingInterval);
+      this.showLoadingInterval = null;
+    }
 
     // Close all client connections first
     for (const client of this.wss.clients) {

@@ -37,7 +37,7 @@ export class MagicQHttpService {
         executors,
       };
     } catch (error) {
-      console.error("Error fetching MagicQ data:", error);
+      console.error("Error fetching MagicQ data:", String(error));
       return { error: "Failed to fetch MagicQ data" };
     }
   }
@@ -77,7 +77,7 @@ export class MagicQHttpService {
 
       return null;
     } catch (error) {
-      console.error("Error fetching show name:", error);
+      console.error("Error fetching show name:", String(error));
       return null;
     }
   }
@@ -159,7 +159,7 @@ export class MagicQHttpService {
       });
       return executors;
     } catch (error) {
-      console.error("Error fetching executors:", error);
+      console.error("Error fetching executors:", String(error));
       return {};
     }
   }
