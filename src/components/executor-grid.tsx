@@ -28,7 +28,11 @@ export type WSMessage =
         value: number;
       };
     }
-  | { type: "brightness-values"; data: { inactive: number; active: number } };
+  | { type: "brightness-values"; data: { inactive: number; active: number } }
+  | {
+      type: "system-command-response";
+      data: { command: string; output: string };
+    };
 
 const darkenColor = (color: string, amount: number) => {
   // Handle both 3 and 6 digit hex codes

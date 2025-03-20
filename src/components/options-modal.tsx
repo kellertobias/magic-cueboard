@@ -3,6 +3,8 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import clsx from "clsx";
 import { btnBaseClasses } from "./button";
 import { WSMessage } from "./executor-grid";
+import { CommandOutputModal } from "./command-output-modal";
+import { BrightnessModal } from "./brightness-modal";
 
 interface OptionsModalProps {
   isOpen: boolean;
@@ -54,12 +56,21 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
   const [activePercentage, setActivePercentage] = useState(
     DEFAULT_ACTIVE_BRIGHTNESS
   );
+  const [showName, setShowName] = useState("<Unknown Show>");
+  const [commandOutput, setCommandOutput] = useState<{
+    command: string;
+    output: string;
+  } | null>(null);
+  const [isBrightnessModalOpen, setIsBrightnessModalOpen] = useState(false);
 
   const handleMessage = useCallback((message: WSMessage) => {
     switch (message.type) {
       case "show-setup":
         console.log(message.data);
         setReloading(false);
+        if (message.data?.showName) {
+          setShowName(message.data.showName);
+        }
         break;
       case "brightness-values":
         // Update local state when receiving brightness values from server
@@ -69,6 +80,9 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
         if (message.data?.active !== undefined) {
           setActivePercentage(brightnessToPercentage(message.data.active));
         }
+        break;
+      case "system-command-response":
+        setCommandOutput(message.data);
         break;
     }
   }, []);
@@ -89,6 +103,17 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
     [sendMessage]
   );
 
+  // Handler for system commands
+  const handleSystemCommand = useCallback(
+    (command: string) => {
+      sendMessage({
+        type: "system-command",
+        command,
+      });
+    },
+    [sendMessage]
+  );
+
   // Request current brightness values when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -96,93 +121,132 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
     }
   }, [isOpen, sendMessage]);
 
-  useEffect(() => {}, []);
-
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-900 p-6 rounded-lg shadow-xl w-[600px]">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-white">Settings</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white -m-4 p-4"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="flex gap-8">
-          {/* Left side - Info and Reload */}
-          <div className="flex-1 space-y-4">
-            <div>
-              <h3 className="text-sm font-medium text-gray-400 mb-2">
-                Device IP
-              </h3>
-              <p className="text-white">10.99.0.2</p>
-            </div>
-
-            <div>
-              <button
-                className={clsx(
-                  btnBaseClasses,
-                  "border-gray-600 text-gray-300"
-                )}
-                onClick={() => {
-                  setReloading(true);
-                  sendMessage({ type: "reload-executors" });
-                }}
-              >
-                {reloading ? "Reloading..." : "Reload from MagicQ"}
-              </button>
-            </div>
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-gray-900 p-6 rounded-lg shadow-xl w-[600px]">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-white">Settings</h2>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-white -m-4 p-4"
+            >
+              ✕
+            </button>
           </div>
 
-          {/* Right side - Brightness Controls */}
-          <div className="flex-1">
-            <h3 className="text-sm font-medium text-gray-400 mb-2">
-              Button Brightness
-            </h3>
-            <div className="space-y-2">
-              <div>
-                <label className="text-sm text-gray-300">Inactive</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={inactivePercentage}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value);
-                    setInactivePercentage(value);
-                    handleBrightnessChange(value, activePercentage);
-                  }}
-                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                />
-                <div className="text-xs text-gray-400">
-                  {inactivePercentage}%
+          <div className="flex gap-4">
+            {/* Left column - Device Info */}
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-gray-400 mb-2">
+                Device Information
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-400 mb-1">
+                    Device IP
+                  </h4>
+                  <p className="text-white">10.99.0.2</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-gray-400 mb-1">
+                    Current Show
+                  </h4>
+                  <p className="text-white font-mono text-sm">{showName}</p>
                 </div>
               </div>
-              <div>
-                <label className="text-sm text-gray-300">Active</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={activePercentage}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value);
-                    setActivePercentage(value);
-                    handleBrightnessChange(inactivePercentage, value);
+            </div>
+
+            {/* Middle column - MagicQ Controls */}
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-gray-400 mb-2">
+                MagicQ Controls
+              </h3>
+              <div className="space-y-2">
+                <button
+                  className={clsx(
+                    btnBaseClasses,
+                    "border-gray-600 text-gray-300 w-full"
+                  )}
+                  onClick={() => {
+                    setReloading(true);
+                    sendMessage({ type: "reload-executors" });
                   }}
-                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                />
-                <div className="text-xs text-gray-400">{activePercentage}%</div>
+                >
+                  {reloading ? "Reloading..." : "Reload from MagicQ"}
+                </button>
+
+                <button
+                  className={clsx(
+                    btnBaseClasses,
+                    "border-gray-600 text-gray-300 w-full"
+                  )}
+                  onClick={() => setIsBrightnessModalOpen(true)}
+                >
+                  Button Brightness
+                </button>
+              </div>
+            </div>
+
+            {/* Right column - System Controls */}
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-gray-400 mb-2">
+                System Controls
+              </h3>
+              <div className="space-y-2">
+                <button
+                  className={clsx(
+                    btnBaseClasses,
+                    "border-gray-600 text-gray-300 w-full"
+                  )}
+                  onClick={() => handleSystemCommand("update-software")}
+                >
+                  Update Software
+                </button>
+
+                <button
+                  className={clsx(
+                    btnBaseClasses,
+                    "border-gray-600 text-gray-300 w-full"
+                  )}
+                  onClick={() => handleSystemCommand("restart-server")}
+                >
+                  Restart Server
+                </button>
+
+                <button
+                  className={clsx(
+                    btnBaseClasses,
+                    "border-red-600 text-red-300 w-full"
+                  )}
+                  onClick={() => handleSystemCommand("restart-device")}
+                >
+                  Restart Device
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {commandOutput && (
+        <CommandOutputModal
+          isOpen={!!commandOutput}
+          onClose={() => setCommandOutput(null)}
+          command={commandOutput.command}
+          output={commandOutput.output}
+        />
+      )}
+
+      <BrightnessModal
+        isOpen={isBrightnessModalOpen}
+        onClose={() => setIsBrightnessModalOpen(false)}
+        inactivePercentage={inactivePercentage}
+        activePercentage={activePercentage}
+        onBrightnessChange={handleBrightnessChange}
+      />
+    </>
   );
 }

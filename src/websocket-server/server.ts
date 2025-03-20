@@ -227,6 +227,10 @@ export class WebSocketService {
           );
           break;
 
+        case "system-command":
+          await this.handleSystemCommand(ws, message);
+          break;
+
         default:
           console.warn("Unknown message type:", message.type);
       }
@@ -316,6 +320,68 @@ export class WebSocketService {
         })
       );
     }
+  }
+
+  /**
+   * Handles system control commands
+   */
+  private async handleSystemCommand(
+    ws: WebSocket,
+    message: any
+  ): Promise<void> {
+    try {
+      const { command } = message;
+      let output = "";
+
+      switch (command) {
+        case "update-software":
+          output = await this.executeCommand(
+            "cd /home/keller/repos/lightstrip && git pull && npm run build"
+          );
+          break;
+        case "restart-server":
+          output = await this.executeCommand(
+            "sudo systemctl restart lightstrip"
+          );
+          break;
+        case "restart-device":
+          output = await this.executeCommand("sudo reboot");
+          break;
+        default:
+          throw new Error(`Unknown system command: ${command}`);
+      }
+
+      ws.send(
+        JSON.stringify({
+          type: "system-command-response",
+          data: { command, output },
+        })
+      );
+    } catch (error) {
+      console.error("Error executing system command:", error);
+      ws.send(
+        JSON.stringify({
+          type: "error",
+          error: "Failed to execute system command",
+        })
+      );
+    }
+  }
+
+  /**
+   * Executes a shell command and returns its output
+   */
+  private async executeCommand(cmd: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const { exec } = require("child_process");
+      exec(cmd, (error: any, stdout: string, stderr: string) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(stdout + stderr);
+      });
+    });
   }
 
   /**
