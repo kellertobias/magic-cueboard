@@ -8,8 +8,9 @@ interface TerminalModalProps {
   onClose: () => void;
   command: string;
   onConfirm: () => void;
-  output: string;
+  output: (string | React.ReactNode)[];
   isExecuting: boolean;
+  hasError: boolean;
 }
 
 /**
@@ -21,6 +22,7 @@ export function TerminalModal({
   command,
   onConfirm,
   output,
+  hasError,
   isExecuting,
 }: TerminalModalProps) {
   const outputRef = useRef<HTMLDivElement>(null);
@@ -55,10 +57,7 @@ export function TerminalModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div
-        className="bg-gray-900 rounded-lg shadow-xl w-full max-w-[800px] flex flex-col"
-        style={{ maxHeight: "calc(100vh - 2rem)" }}
-      >
+      <div className="bg-gray-900 rounded-lg shadow-xl w-full max-w-[800px] flex flex-col max-h-[280px] overflow-y-scroll">
         {/* Terminal Content */}
         <div
           ref={outputRef}
@@ -68,15 +67,27 @@ export function TerminalModal({
           {!output ? (
             <>
               <div>
-                <span className="text-yellow-300">$ {command}:</span>
+                <span className="text-yellow-400">$ {command}:</span>
                 <br />
                 {systemCommands[command as keyof typeof systemCommands]}
               </div>
-              <div className="mt-2 text-yellow-300">Execute this command?</div>
+              <div className="mt-2 text-yellow-400">Execute this command?</div>
             </>
+          ) : hasError ? (
+            <div>
+              <span className="text-red-500">$ {command}</span>
+              <br />
+              <span className="text-red-500/40">
+                {systemCommands[command as keyof typeof systemCommands]}
+              </span>
+            </div>
           ) : (
             <div>
-              <span className="text-green-300">$ {command}</span>
+              <span className="text-green-400">$ {command}</span>
+              <br />
+              <span className="text-green-400/40">
+                {systemCommands[command as keyof typeof systemCommands]}
+              </span>
             </div>
           )}
           {output && <div className="mt-2">{output}</div>}

@@ -3,7 +3,6 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import clsx from "clsx";
 import { btnBaseClasses } from "./button";
 import { WSMessage } from "./executor-grid";
-import { CommandOutputModal } from "./command-output-modal";
 import { BrightnessModal } from "./brightness-modal";
 import { TerminalModal } from "./terminal-modal";
 
@@ -60,12 +59,14 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
   const [showName, setShowName] = useState("<Unknown Show>");
   const [commandOutput, setCommandOutput] = useState<{
     command: string;
-    output: string;
+    output: (string | React.ReactNode)[];
+    hasError: boolean;
   } | null>(null);
   const [isBrightnessModalOpen, setIsBrightnessModalOpen] = useState(false);
   const [isTerminalModalOpen, setIsTerminalModalOpen] = useState(false);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [ipAddress, setIpAddress] = useState<string | null>(null);
 
   const handleMessage = useCallback((message: WSMessage) => {
     switch (message.type) {
@@ -74,6 +75,9 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
         setReloading(false);
         if (message.data?.showName) {
           setShowName(message.data.showName);
+        }
+        if (message.data?.ip) {
+          setIpAddress(message.data.ip);
         }
         break;
       case "brightness-values":
@@ -88,9 +92,15 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
       case "system-command-response":
         setCommandOutput((prev) => ({
           command: message.data.command,
-          output: prev
-            ? prev.output + message.data.output
-            : message.data.output,
+          output: [
+            ...(prev?.output || []),
+            message.data.isError ? (
+              <span className="text-red-500">{message.data.output}</span>
+            ) : (
+              message.data.output
+            ),
+          ],
+          hasError: prev?.hasError || message.data.isError || false,
         }));
         break;
     }
@@ -138,7 +148,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-gray-900 p-6 rounded-lg shadow-xl w-[600px]">
+        <div className="bg-gray-900 p-6 rounded-lg shadow-xl w-[600px] max-h-[280px] overflow-y-scroll">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-white">Settings</h2>
             <button
@@ -160,7 +170,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
                   <h4 className="text-sm font-medium text-gray-400 mb-1">
                     Device IP
                   </h4>
-                  <p className="text-white">10.99.0.2</p>
+                  <p className="text-white">{ipAddress}</p>
                 </div>
                 <div>
                   <h4 className="text-sm font-medium text-gray-400 mb-1">
@@ -243,15 +253,6 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
         </div>
       </div>
 
-      {commandOutput && (
-        <CommandOutputModal
-          isOpen={!!commandOutput}
-          onClose={() => setCommandOutput(null)}
-          command={commandOutput.command}
-          output={commandOutput.output}
-        />
-      )}
-
       <TerminalModal
         isOpen={isTerminalModalOpen}
         onClose={() => {
@@ -262,8 +263,9 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
         }}
         command={pendingCommand || ""}
         onConfirm={handleCommandConfirm}
-        output={commandOutput?.output || ""}
+        output={commandOutput?.output || []}
         isExecuting={isExecuting}
+        hasError={commandOutput?.hasError || false}
       />
 
       <BrightnessModal

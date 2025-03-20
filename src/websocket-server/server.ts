@@ -25,6 +25,7 @@ export class WebSocketService {
 
   private isShowLoadingAttemptInProgress: boolean = false;
   private showLoadingInterval: NodeJS.Timeout | null = null;
+  private listenIp: string;
 
   constructor({
     listenIp,
@@ -49,6 +50,7 @@ export class WebSocketService {
     brightnessSettingsPath: string;
     wsPort: number;
   }) {
+    this.listenIp = listenIp;
     // Load brightness settings from file or use defaults
     this.brightnessSettingsPath = brightnessSettingsPath;
     this.brightnessSettings = this.loadBrightnessSettings(
@@ -265,7 +267,7 @@ export class WebSocketService {
   private async sendShowSetup(): Promise<void> {
     this.broadcast({
       type: "show-setup",
-      data: this.magicqData,
+      data: { ...this.magicqData, ip: this.listenIp },
     });
   }
 
@@ -339,6 +341,7 @@ export class WebSocketService {
           data: {
             command: output.line.startsWith("$ ") ? output.line.slice(2) : "",
             output: output.line + "\n",
+            isError: output.isError,
           },
         });
       }

@@ -19,6 +19,7 @@ export type WSMessage =
       data: {
         executors?: Record<number, Executor>;
         showName?: string;
+        ip?: string;
       };
     }
   | {
@@ -31,7 +32,7 @@ export type WSMessage =
   | { type: "brightness-values"; data: { inactive: number; active: number } }
   | {
       type: "system-command-response";
-      data: { command: string; output: string };
+      data: { command: string; output: string; isError: boolean };
     };
 
 const darkenColor = (color: string, amount: number) => {

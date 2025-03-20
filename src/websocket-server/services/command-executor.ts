@@ -15,12 +15,6 @@ export class CommandExecutorService extends EventEmitter {
    */
   public async callCommand(command: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      // First emit the command that will be executed
-      this.emit("output", {
-        line: `$ ${command}`,
-        isError: false,
-      });
-
       const process = spawn(command, [], {
         shell: true,
         stdio: ["pipe", "pipe", "pipe"],
