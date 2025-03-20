@@ -51,7 +51,7 @@ export class MagicQOscService extends EventEmitter {
     });
 
     this.oscReceiver.on("*", (message: OSC.Message) => {
-      console.log("Received OSC message:", message);
+      console.log("[OSC] Received message:", message);
       this.handleOSCMessage(message);
     });
 
@@ -101,7 +101,7 @@ export class MagicQOscService extends EventEmitter {
   public sendOSC(path: string, value: number | string): void {
     const message = new OSC.Message(path, Number(value) * 1.0);
     message.types = "f";
-    console.log("Sending OSC message:", message);
+    console.log("[OSC] Sending message:", message);
     this.oscSender.send(message);
   }
 
@@ -122,7 +122,7 @@ export class MagicQOscService extends EventEmitter {
 
       this.sendOSC(address, normalizedValue);
     } catch (error) {
-      console.error("Error sending executor command:", error);
+      console.error("[OSC] Error sending executor command:", error);
     }
     return execNumber;
   }
@@ -139,16 +139,16 @@ export class MagicQOscService extends EventEmitter {
     // Send feedback request every minute
     this.feedbackInterval = setInterval(() => {
       try {
-        console.log("Sending feedback request");
+        console.log("[OSC] Sending feedback request");
         const message = new OSC.Message("/feedback/exec");
         this.oscSender.send(message);
       } catch (error) {
-        console.error("Error sending feedback request:", error);
+        console.error("[OSC] Error sending feedback request:", error);
       }
     }, 60000); // 1 minute
 
     // Send initial feedback request
-    console.log("Sending feedback request");
+    console.log("[OSC] Sending feedback request");
     const message = new OSC.Message("/feedback/exec");
     this.oscSender.send(message);
   }
@@ -158,7 +158,7 @@ export class MagicQOscService extends EventEmitter {
    */
   private handleOSCMessage(message: OSC.Message): void {
     try {
-      console.log("Received OSC message:", message);
+      console.log("[OSC] Received message:", message);
 
       // Check if it's an executor update
       const match = message.address.match(/^\/exec\/1\/(\d+)$/);
@@ -174,7 +174,7 @@ export class MagicQOscService extends EventEmitter {
 
       // Emit the OSC message for other handlers
     } catch (error) {
-      console.error("Error handling OSC message:", error);
+      console.error("[OSC] Error handling OSC message:", error);
     }
   }
 }
