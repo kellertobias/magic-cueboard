@@ -242,6 +242,7 @@ export class WebSocketService {
     this.magicqData = await this.magicqHttp.fetchData();
     this.sendShowSetup();
     if (this.magicqData && "executors" in this.magicqData) {
+      this.magicqOsc.connected = true;
       for (const exec of Object.values(this.magicqData.executors)) {
         this.state[exec.number] = {
           type: exec.number > 40 ? "fader" : exec.type,

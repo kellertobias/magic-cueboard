@@ -7,6 +7,7 @@ import { getExecutorNumber, makeExecutorNumber } from "./helpers";
  * Uses separate OSC objects for sending and receiving messages
  */
 export class MagicQOscService extends EventEmitter {
+  public connected = false;
   private feedbackInterval: NodeJS.Timeout | null = null;
   private oscReceiver: OSC;
   private oscSender: OSC;
@@ -99,6 +100,10 @@ export class MagicQOscService extends EventEmitter {
    * Sends an OSC message using the sender
    */
   public sendOSC(path: string, value: number | string): void {
+    if (!this.connected) {
+      console.log("[OSC] Not connected, skipping message:", path, value);
+      return;
+    }
     const message = new OSC.Message(path, Number(value) * 1.0);
     message.types = "f";
     console.log("[OSC] Sending message:", message);
@@ -141,16 +146,20 @@ export class MagicQOscService extends EventEmitter {
       try {
         console.log("[OSC] Sending feedback request");
         const message = new OSC.Message("/feedback/exec", true);
-        this.oscSender.send(message);
+        if (this.connected) {
+          this.oscSender.send(message);
+        }
       } catch (error) {
         console.error("[OSC] Error sending feedback request:", error);
       }
-    }, 60000); // 1 minute
+    }, 15000); // 1 minute
 
     // Send initial feedback request
     console.log("[OSC] Sending feedback request");
     const message = new OSC.Message("/feedback/exec", true);
-    this.oscSender.send(message);
+    if (this.connected) {
+      this.oscSender.send(message);
+    }
   }
 
   /**
