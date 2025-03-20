@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently --names \"SRV,WEB\" \"tsx src/websocket-server/index.ts\" \"sleep 1 && next dev\"",
     "build": "next build",
-    "start": "NODE_ENV=production concurrently --kill-others-on-fail \"tsx src/websocket-server/index.ts\" \"sleep 1 && next start\"",
+    "start": "NODE_ENV=production concurrently --names \"SRV,WEB\" --kill-others-on-fail \"tsx src/websocket-server/index.ts\" \"sleep 1 && next start\"",
     "lint": "next lint",
     "test": "vitest"
   },
