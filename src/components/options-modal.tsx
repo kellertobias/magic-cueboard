@@ -5,6 +5,7 @@ import { btnBaseClasses } from "./button";
 import { WSMessage } from "./executor-grid";
 import { CommandOutputModal } from "./command-output-modal";
 import { BrightnessModal } from "./brightness-modal";
+import { TerminalModal } from "./terminal-modal";
 
 interface OptionsModalProps {
   isOpen: boolean;
@@ -62,6 +63,9 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
     output: string;
   } | null>(null);
   const [isBrightnessModalOpen, setIsBrightnessModalOpen] = useState(false);
+  const [isTerminalModalOpen, setIsTerminalModalOpen] = useState(false);
+  const [pendingCommand, setPendingCommand] = useState<string | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
 
   const handleMessage = useCallback((message: WSMessage) => {
     switch (message.type) {
@@ -82,7 +86,12 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
         }
         break;
       case "system-command-response":
-        setCommandOutput(message.data);
+        setCommandOutput((prev) => ({
+          command: message.data.command,
+          output: prev
+            ? prev.output + message.data.output
+            : message.data.output,
+        }));
         break;
     }
   }, []);
@@ -104,15 +113,18 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
   );
 
   // Handler for system commands
-  const handleSystemCommand = useCallback(
-    (command: string) => {
-      sendMessage({
-        type: "system-command",
-        command,
-      });
-    },
-    [sendMessage]
-  );
+  const handleSystemCommand = (command: string) => {
+    setPendingCommand(command);
+    setIsTerminalModalOpen(true);
+  };
+
+  const handleCommandConfirm = () => {
+    if (pendingCommand) {
+      setIsExecuting(true);
+      setCommandOutput(null);
+      sendMessage({ type: "system-command", command: pendingCommand });
+    }
+  };
 
   // Request current brightness values when modal opens
   useEffect(() => {
@@ -239,6 +251,20 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
           output={commandOutput.output}
         />
       )}
+
+      <TerminalModal
+        isOpen={isTerminalModalOpen}
+        onClose={() => {
+          setIsTerminalModalOpen(false);
+          setPendingCommand(null);
+          setCommandOutput(null);
+          setIsExecuting(false);
+        }}
+        command={pendingCommand || ""}
+        onConfirm={handleCommandConfirm}
+        output={commandOutput?.output || ""}
+        isExecuting={isExecuting}
+      />
 
       <BrightnessModal
         isOpen={isBrightnessModalOpen}

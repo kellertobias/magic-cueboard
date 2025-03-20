@@ -3,7 +3,9 @@ import { ChildProcess } from "./services/child-process";
 import { MagicQData, MagicQHttpService } from "./services/magicq-http";
 import { MagicQOscService } from "./services/magicq-osc";
 import { ButtonControllerService } from "./services/button-controller";
+import { CommandExecutorService } from "./services/command-executor";
 import { existsSync, readFileSync, writeFileSync } from "fs";
+import { systemCommands } from "@/system-commands";
 
 export class WebSocketService {
   private wss: WebSocketServer;
@@ -11,6 +13,7 @@ export class WebSocketService {
   private magicqHttp: MagicQHttpService;
   private magicqOsc: MagicQOscService;
   private buttonController: ButtonControllerService;
+  private commandExecutor: CommandExecutorService;
   private brightnessSettings: { inactive: number; active: number };
   private brightnessSettingsPath: string;
 
@@ -81,11 +84,13 @@ export class WebSocketService {
       sendAddress: magicqIp,
     });
     this.buttonController = new ButtonControllerService(buttonControllerPort);
+    this.commandExecutor = new CommandExecutorService();
 
     // Setup event handlers
     this.setupButtonControllerEvents();
     this.setupMagicQOscEvents();
     this.setupWebSocketServer();
+    this.setupCommandExecutorEvents();
 
     this.magicqOsc.start();
     this.buttonController.start();
@@ -323,40 +328,45 @@ export class WebSocketService {
   }
 
   /**
+   * Sets up event handlers for the command executor
+   */
+  private setupCommandExecutorEvents(): void {
+    this.commandExecutor.on(
+      "output",
+      (output: { line: string; isError: boolean }) => {
+        this.broadcast({
+          type: "system-command-response",
+          data: {
+            command: output.line.startsWith("$ ") ? output.line.slice(2) : "",
+            output: output.line + "\n",
+          },
+        });
+      }
+    );
+  }
+
+  /**
    * Handles system control commands
    */
   private async handleSystemCommand(
     ws: WebSocket,
-    message: any
+    message: { command: string }
   ): Promise<void> {
     try {
       const { command } = message;
-      let output = "";
-
-      switch (command) {
-        case "update-software":
-          output = await this.executeCommand(
-            "cd /home/keller/repos/lightstrip && git pull && npm run build"
-          );
-          break;
-        case "restart-server":
-          output = await this.executeCommand(
-            "sudo systemctl restart lightstrip"
-          );
-          break;
-        case "restart-device":
-          output = await this.executeCommand("sudo reboot");
-          break;
-        default:
-          throw new Error(`Unknown system command: ${command}`);
+      if (command in systemCommands) {
+        await this.commandExecutor.callCommand(
+          systemCommands[command as keyof typeof systemCommands]
+        );
+      } else {
+        console.error("Unknown system command:", command);
+        ws.send(
+          JSON.stringify({
+            type: "error",
+            error: "Unknown system command",
+          })
+        );
       }
-
-      ws.send(
-        JSON.stringify({
-          type: "system-command-response",
-          data: { command, output },
-        })
-      );
     } catch (error) {
       console.error("Error executing system command:", error);
       ws.send(
@@ -366,22 +376,6 @@ export class WebSocketService {
         })
       );
     }
-  }
-
-  /**
-   * Executes a shell command and returns its output
-   */
-  private async executeCommand(cmd: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const { exec } = require("child_process");
-      exec(cmd, (error: any, stdout: string, stderr: string) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(stdout + stderr);
-      });
-    });
   }
 
   /**
