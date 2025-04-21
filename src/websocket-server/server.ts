@@ -23,6 +23,10 @@ export class WebSocketService {
   > = {};
   private magicqData: MagicQData | { error: string } | null = null;
 
+  // Store recent fader values for debouncing
+  private faderValues: Record<number, { value: number; timestamp: number }[]> =
+    {};
+
   private isShowLoadingAttemptInProgress = false;
   private showLoadingInterval: NodeJS.Timeout | null = null;
   private listenIp: string;
@@ -465,6 +469,48 @@ export class WebSocketService {
   }
 
   /**
+   * Calculates a debounced value for a fader by averaging recent values within a 1-second window
+   * @param faderNumber The number of the fader executor
+   * @param newValue The new value to add to the history
+   * @returns The debounced value
+   */
+  private getDebouncedValue(faderNumber: number, newValue: number): number {
+    // Initialize fader values array if it doesn't exist
+    if (!this.faderValues[faderNumber]) {
+      this.faderValues[faderNumber] = [];
+    }
+
+    // Add new value with current timestamp
+    this.faderValues[faderNumber].push({
+      value: newValue,
+      timestamp: Date.now(),
+    });
+
+    // Remove values older than 1 second
+    const oneSecondAgo = Date.now() - 1000;
+    this.faderValues[faderNumber] = this.faderValues[faderNumber].filter(
+      (entry) => entry.timestamp >= oneSecondAgo
+    );
+
+    // Calculate average of recent values
+    const average =
+      this.faderValues[faderNumber].reduce(
+        (sum, entry) => sum + entry.value,
+        0
+      ) / this.faderValues[faderNumber].length;
+
+    // If value is 0 or > 0.99, return the exact value
+    if (newValue <= 0.01) {
+      return 0;
+    }
+    if (newValue >= 0.99) {
+      return 0.999;
+    }
+
+    return average;
+  }
+
+  /**
    * Handles executor commands from buttons and potentiometers
    */
   private handleExecutorCommand(execNumber: number, valueInput: number): void {
@@ -478,15 +524,14 @@ export class WebSocketService {
     const type = exec.type;
 
     if (type === "fader") {
-      const nextValue = Math.min(
-        Math.round((valueInput / 255) * 100) / 100,
-        0.9999
+      exec.value = this.getDebouncedValue(
+        execNumber,
+        Math.round((valueInput / 255) * 100) / 100
       );
 
-      if (nextValue === exec.value) {
+      if (exec.value === lastValue) {
         return;
       }
-      exec.value = nextValue;
     } else if (type === "toggle" && valueInput > 0) {
       exec.value = lastValue === 0 ? 1 : 0;
     } else if (type === "toggle") {
