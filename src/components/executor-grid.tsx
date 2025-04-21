@@ -46,7 +46,7 @@ const darkenColor = (color: string, amount: number) => {
       : color;
 
   return fullColor.replace(/(.{2})/g, (hex) => {
-    const value = Math.floor(parseInt(hex, 16) * amount);
+    const value = Math.floor(Number.parseInt(hex, 16) * amount);
     return value.toString(16).padStart(2, "0");
   });
 };
@@ -98,13 +98,13 @@ function ExecutorButton({
         )}
         style={{ lineHeight: 1.1 }}
       >
-        {executor?.name || `<Empty>`}
+        {executor?.name || "<Empty>"}
       </div>
       {executor?.dotColor && (
         <div
           className="h-1 rounded-full absolute bottom-1 right-6 left-6"
           style={{ backgroundColor: `#${executor.dotColor}` }}
-        ></div>
+        />
       )}
     </div>
   );
@@ -132,7 +132,12 @@ function ExecutorPoti({
       {/* Circular progress indicator with bottom opening */}
       <div className="relative w-8 h-8">
         {/* Background circle (gray stroke, open at bottom) */}
-        <svg className="absolute inset-0" viewBox="0 0 36 36">
+        <svg
+          className="absolute inset-0"
+          viewBox="0 0 36 36"
+          aria-label="Poti"
+          role="img"
+        >
           <path
             d="M18 2
               a 16 16 0 0 1 0 32
@@ -188,6 +193,7 @@ export function ExecutorGrid({ openSettings }: { openSettings: () => void }) {
       <div className="flex flex-row justify-between items-center h-[40px]">
         <div className="flex flex-row gap-4 items-center justify-start">
           <button
+            type="button"
             className={clsx(btnBaseClasses, "border-gray-600 text-gray-300")}
             onClick={() => {
               openSettings();

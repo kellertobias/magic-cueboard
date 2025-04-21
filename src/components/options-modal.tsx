@@ -1,10 +1,11 @@
-import React, { useCallback, useState, useEffect } from "react";
+import type React from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import clsx from "clsx";
-import { btnBaseClasses } from "./button";
-import { WSMessage } from "./executor-grid";
-import { BrightnessModal } from "./brightness-modal";
-import { TerminalModal } from "./terminal-modal";
+import { btnBaseClasses } from "@/components/button";
+import type { WSMessage } from "@/components/executor-grid";
+import { BrightnessModal } from "@/components/brightness-modal";
+import { TerminalModal } from "@/components/terminal-modal";
 
 interface OptionsModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ function percentageToBrightness(percentage: number): number {
  */
 function brightnessToPercentage(brightness: number): number {
   // find the value in the valueMap that is closest to the brightness
+  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
   const closest = Object.keys(valueMap).reduce((prev: any, curr: any) => {
     return Math.abs(Number(curr) - brightness) <
       Math.abs(Number(prev) - brightness)
@@ -95,7 +97,9 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
           output: [
             ...(prev?.output || []),
             message.data.isError ? (
-              <span className="text-red-500">{message.data.output}</span>
+              <span className="text-red-500" key={message.data.output}>
+                {message.data.output}
+              </span>
             ) : (
               message.data.output
             ),
@@ -152,6 +156,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-white">Settings</h2>
             <button
+              type="button"
               onClick={onClose}
               className="text-gray-400 hover:text-white -m-4 p-4"
             >
@@ -188,6 +193,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
               </h3>
               <div className="space-y-2">
                 <button
+                  type="button"
                   className={clsx(
                     btnBaseClasses,
                     "border-gray-600 text-gray-300 w-full"
@@ -201,6 +207,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
                 </button>
 
                 <button
+                  type="button"
                   className={clsx(
                     btnBaseClasses,
                     "border-gray-600 text-gray-300 w-full"
@@ -219,6 +226,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
               </h3>
               <div className="space-y-2">
                 <button
+                  type="button"
                   className={clsx(
                     btnBaseClasses,
                     "border-gray-600 text-gray-300 w-full"
@@ -229,6 +237,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
                 </button>
 
                 <button
+                  type="button"
                   className={clsx(
                     btnBaseClasses,
                     "border-gray-600 text-gray-300 w-full"
@@ -239,6 +248,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
                 </button>
 
                 <button
+                  type="button"
                   className={clsx(
                     btnBaseClasses,
                     "border-red-600 text-red-300 w-full"

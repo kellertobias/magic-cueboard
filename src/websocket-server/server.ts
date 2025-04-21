@@ -1,11 +1,11 @@
-import { WebSocketServer, WebSocket } from "ws";
 import { ChildProcess } from "./services/child-process";
-import { MagicQData, MagicQHttpService } from "./services/magicq-http";
+import { type MagicQData, MagicQHttpService } from "./services/magicq-http";
 import { MagicQOscService } from "./services/magicq-osc";
 import { ButtonControllerService } from "./services/button-controller";
 import { CommandExecutorService } from "./services/command-executor";
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { systemCommands } from "@/system-commands";
+import { WebSocketServer, WebSocket } from "ws";
 
 export class WebSocketService {
   private wss: WebSocketServer;
@@ -23,7 +23,7 @@ export class WebSocketService {
   > = {};
   private magicqData: MagicQData | { error: string } | null = null;
 
-  private isShowLoadingAttemptInProgress: boolean = false;
+  private isShowLoadingAttemptInProgress = false;
   private showLoadingInterval: NodeJS.Timeout | null = null;
   private listenIp: string;
 
@@ -108,7 +108,7 @@ export class WebSocketService {
     // Start periodic show loading
     this.startPeriodicShowLoading();
 
-    console.log(`Server fully started`);
+    console.log("Server fully started");
   }
 
   /**
@@ -207,6 +207,7 @@ export class WebSocketService {
    */
   private async handleWebSocketMessage(
     ws: WebSocket,
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
     data: any
   ): Promise<void> {
     try {
@@ -276,6 +277,7 @@ export class WebSocketService {
    */
   private async handleExecutorMessage(
     ws: WebSocket,
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
     message: any
   ): Promise<void> {
     try {
@@ -301,6 +303,7 @@ export class WebSocketService {
    */
   private async handleSetBrightness(
     ws: WebSocket,
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
     message: any
   ): Promise<void> {
     try {
@@ -340,7 +343,7 @@ export class WebSocketService {
           type: "system-command-response",
           data: {
             command: output.line.startsWith("$ ") ? output.line.slice(2) : "",
-            output: output.line + "\n",
+            output: `${output.line}\n`,
             isError: output.isError,
           },
         });
@@ -446,6 +449,8 @@ export class WebSocketService {
   /**
    * Updates button colors based on showfile data
    */
+
+  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
   private updateButtonColors(executors: Record<number, any>): void {
     console.log("Updating button colors", executors);
     for (const [exec, data] of Object.entries(executors)) {
@@ -507,9 +512,10 @@ export class WebSocketService {
     });
   }
 
+  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
   private broadcast(data: any): void {
     const message = JSON.stringify(data);
-    this.wss.clients.forEach((client) => {
+    for (const client of this.wss.clients) {
       if (client.readyState === WebSocket.OPEN) {
         try {
           client.send(message);
@@ -517,7 +523,7 @@ export class WebSocketService {
           console.error("Error sending message to client:", error);
         }
       }
-    });
+    }
   }
 
   /**

@@ -1,6 +1,4 @@
 import React from "react";
-import clsx from "clsx";
-import { btnBaseClasses } from "./button";
 
 interface BrightnessModalProps {
   isOpen: boolean;
@@ -30,6 +28,7 @@ export function BrightnessModal({
             Button Brightness
           </h2>
           <button
+            type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-white -m-4 p-4"
           >
@@ -39,14 +38,20 @@ export function BrightnessModal({
 
         <div className="space-y-6">
           <div>
-            <label className="text-sm text-gray-300">Inactive Brightness</label>
+            <label
+              htmlFor="inactive-brightness"
+              className="text-sm text-gray-300"
+            >
+              Inactive Brightness
+            </label>
             <input
+              id="inactive-brightness"
               type="range"
               min="0"
               max="100"
               value={inactivePercentage}
               onChange={(e) => {
-                const value = parseInt(e.target.value);
+                const value = Number.parseInt(e.target.value);
                 onBrightnessChange(value, activePercentage);
               }}
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
@@ -55,14 +60,20 @@ export function BrightnessModal({
           </div>
 
           <div>
-            <label className="text-sm text-gray-300">Active Brightness</label>
+            <label
+              htmlFor="active-brightness"
+              className="text-sm text-gray-300"
+            >
+              Active Brightness
+            </label>
             <input
+              id="active-brightness"
               type="range"
               min="0"
               max="100"
               value={activePercentage}
               onChange={(e) => {
-                const value = parseInt(e.target.value);
+                const value = Number.parseInt(e.target.value);
                 onBrightnessChange(inactivePercentage, value);
               }}
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"

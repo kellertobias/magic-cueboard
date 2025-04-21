@@ -1,4 +1,4 @@
-import { EventEmitter } from "events";
+import { EventEmitter } from "node:events";
 import OSC from "osc-js";
 import { getExecutorNumber, makeExecutorNumber } from "./helpers";
 
@@ -30,6 +30,7 @@ export class MagicQOscService extends EventEmitter {
           host: this.connection.receiveAddress,
           port: this.connection.receivePort,
         },
+        // biome-ignore lint/suspicious/noExplicitAny: <explanation>
       } as any),
     });
 
@@ -41,6 +42,7 @@ export class MagicQOscService extends EventEmitter {
           host: this.connection.sendAddress,
           port: this.connection.sendPort,
         },
+        // biome-ignore lint/suspicious/noExplicitAny: <explanation>
       } as any),
     });
 
@@ -172,7 +174,7 @@ export class MagicQOscService extends EventEmitter {
       // Check if it's an executor update
       const match = message.address.match(/^\/exec\/1\/(\d+)$/);
       if (match && message.args.length > 0) {
-        const exec = parseInt(match[1], 10);
+        const exec = Number.parseInt(match[1], 10);
         const isInfoExec = exec % 20 > 10;
         const executorNumber = getExecutorNumber(exec);
         const value = message.args[0] as number;

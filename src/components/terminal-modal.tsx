@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import type React from "react";
+import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
-import { btnBaseClasses } from "./button";
+import { btnBaseClasses } from "@/components/button";
 import { systemCommands } from "@/system-commands";
 
 interface TerminalModalProps {
@@ -29,9 +30,11 @@ export function TerminalModal({
   const [showCloseButton, setShowCloseButton] = useState(false);
 
   // Auto-scroll to bottom when new output arrives
+  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
     if (outputRef.current) {
       const scrollToBottom = () => {
+        // biome-ignore lint/style/noNonNullAssertion: <explanation>
         outputRef.current!.scrollTop = outputRef.current!.scrollHeight;
       };
 
@@ -98,6 +101,7 @@ export function TerminalModal({
           {!output || output.length === 0 ? (
             <>
               <button
+                type="button"
                 onClick={onClose}
                 className={clsx(
                   btnBaseClasses,
@@ -107,6 +111,7 @@ export function TerminalModal({
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={onConfirm}
                 className={clsx(
                   btnBaseClasses,
@@ -118,6 +123,7 @@ export function TerminalModal({
             </>
           ) : (
             <button
+              type="button"
               onClick={onClose}
               className={clsx(btnBaseClasses, "border-gray-600 text-gray-300")}
             >
