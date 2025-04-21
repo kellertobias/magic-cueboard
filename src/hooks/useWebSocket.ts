@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect } from "react";
 import { WebSocketContext } from "@/contexts/WebSocketContext";
 
+// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 type MessageHandler = (data: any) => void;
 
 interface UseWebSocketResult {
@@ -11,6 +12,7 @@ interface UseWebSocketResult {
 
 export function useWebSocket(
   onMessage: MessageHandler,
+  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
   deps: any[] = []
 ): UseWebSocketResult {
   const context = useContext(WebSocketContext);
@@ -19,6 +21,7 @@ export function useWebSocket(
     throw new Error("useWebSocket must be used within a WebSocketProvider");
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   const onMessageWrapped = useCallback(onMessage, [deps]);
 
   useEffect(() => {

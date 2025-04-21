@@ -1,10 +1,10 @@
-import { spawn, ChildProcess as CP } from "child_process";
-import { EventEmitter } from "events";
+import { spawn, type ChildProcess as CP } from "node:child_process";
+import { EventEmitter } from "node:events";
 
 export class ChildProcess extends EventEmitter {
   private process: CP | null = null;
-  private buffer: string = "";
-  private command: string = "";
+  private buffer = "";
+  private command = "";
   private args: string[] = [];
 
   // Restart tracking

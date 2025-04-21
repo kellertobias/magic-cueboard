@@ -66,6 +66,8 @@ export function SPLBar({
 
   return (
     <svg
+      role="img"
+      aria-label="SPL Bar"
       viewBox={`0 0 ${svgWidth} ${svgHeight}`}
       preserveAspectRatio="none"
       className={clsx("w-full h-full rounded-lg", className, getColor(value))}
@@ -91,6 +93,7 @@ export function SPLGraph({
   const svgWidth = 200;
   const svgHeight = 100;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   const scalePoint = useCallback(
     makeScalePoint({ svgWidth, svgHeight, maxPoints, minValue, maxValue }),
     [svgWidth, svgHeight, maxPoints, minValue, maxValue]
@@ -116,6 +119,8 @@ export function SPLGraph({
 
   return (
     <svg
+      role="img"
+      aria-label="SPL Graph"
       viewBox={`0 0 ${svgWidth} ${svgHeight}`}
       preserveAspectRatio="none"
       className={clsx(

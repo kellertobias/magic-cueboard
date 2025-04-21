@@ -93,12 +93,14 @@ export class WebSocketService {
     this.setupMagicQOscEvents();
     this.setupWebSocketServer();
     this.setupCommandExecutorEvents();
+    this.setupSPLMeterEvents();
 
     this.magicqOsc.start();
     this.buttonController.start();
 
     // Start child process if available
     if (existsSync("/home/keller/repos/gm1356/splread")) {
+      console.log("dB Meter Process Exists - Starting...");
       this.childProcess.start("/home/keller/repos/gm1356/splread", [
         "-i 50",
         "-f",
@@ -564,6 +566,34 @@ export class WebSocketService {
     } catch (error) {
       console.error("Error saving brightness settings:", error);
     }
+  }
+
+  /**
+   * Sets up event handlers for the SPL meter child process
+   */
+  private setupSPLMeterEvents(): void {
+    this.childProcess.on(
+      "data",
+      (data: {
+        measured: number;
+        timestamp: string;
+        mode: string;
+        freqMode: string;
+        range: string;
+      }) => {
+        // Broadcast SPL data to all connected clients
+        this.broadcast({
+          type: "spl",
+          data: {
+            measured: data.measured,
+            timestamp: data.timestamp,
+            mode: data.mode,
+            freqMode: data.freqMode,
+            range: data.range,
+          },
+        });
+      }
+    );
   }
 
   public async stop(): Promise<void> {

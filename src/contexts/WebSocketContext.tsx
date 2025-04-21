@@ -12,6 +12,7 @@ interface WebSocketContextType {
   status: "connecting" | "connected" | "disconnected";
   disconnectedSince: number | null;
   sendMessage: (message: unknown) => void;
+  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
   addMessageListener: (listener: (data: any) => void) => () => void;
 }
 
@@ -37,6 +38,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     null
   );
   const wsRef = useRef<WebSocket | null>(null);
+  // biome-ignore lint/suspicious/noExplicitAny: <explanation>
   const messageListenersRef = useRef<Set<(data: any) => void>>(new Set());
 
   const connect = React.useCallback(() => {
@@ -72,6 +74,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          // biome-ignore lint/complexity/noForEach: <explanation>
           messageListenersRef.current.forEach((listener) => {
             try {
               listener(data);
@@ -91,6 +94,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
   useEffect(() => {
     connect();
 
@@ -108,6 +112,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addMessageListener = React.useCallback(
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
     (listener: (data: any) => void) => {
       if (typeof listener !== "function") {
         return () => {};
