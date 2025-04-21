@@ -31,6 +31,9 @@ export class WebSocketService {
   private showLoadingInterval: NodeJS.Timeout | null = null;
   private listenIp: string;
 
+  // Map to store each client's message type preferences
+  private clientMessageTypes: Map<WebSocket, string[]> = new Map();
+
   constructor({
     listenIp,
     magicqIp,
@@ -177,6 +180,9 @@ export class WebSocketService {
     this.wss.on("connection", (ws) => {
       console.log("Client connected to WebSocket");
 
+      // Initialize empty message types array for new client
+      this.clientMessageTypes.set(ws, []);
+
       // Send initial connection success message
       ws.send(JSON.stringify({ type: "connection", status: "connected" }));
 
@@ -194,6 +200,8 @@ export class WebSocketService {
       // Handle client disconnection
       ws.on("close", () => {
         console.log("Client disconnected from WebSocket");
+        // Clean up client preferences
+        this.clientMessageTypes.delete(ws);
       });
 
       // Handle connection errors
@@ -220,6 +228,18 @@ export class WebSocketService {
       const message = JSON.parse(data.toString());
 
       switch (message.type) {
+        case "only":
+          // Update client's message type preferences
+          if (Array.isArray(message.types)) {
+            this.clientMessageTypes.set(ws, message.types);
+            console.log(
+              `Client now only receiving messages of types: ${message.types.join(
+                ", "
+              )}`
+            );
+          }
+          break;
+
         case "reload-executors":
           await this.handleReloadExecutors();
           break;
@@ -565,7 +585,13 @@ export class WebSocketService {
     for (const client of this.wss.clients) {
       if (client.readyState === WebSocket.OPEN) {
         try {
-          client.send(message);
+          // Get client's message type preferences
+          const allowedTypes = this.clientMessageTypes.get(client);
+
+          // If client has no preferences or message type is in preferences, send the message
+          if (!allowedTypes || allowedTypes.includes(data.type)) {
+            client.send(message);
+          }
         } catch (error) {
           console.error("Error sending message to client:", error);
         }
