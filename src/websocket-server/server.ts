@@ -588,6 +588,10 @@ export class WebSocketService {
           // Get client's message type preferences
           const allowedTypes = this.clientMessageTypes.get(client);
 
+          console.log("Broadcasting message:", message, {
+            allowedTypes,
+            data,
+          });
           // If client has no preferences or message type is in preferences, send the message
           if (!allowedTypes || allowedTypes.includes(data.type)) {
             client.send(message);
