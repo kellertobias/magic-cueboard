@@ -136,7 +136,10 @@ export class WebSocketService {
       const time = new Date();
       this.mqttBroker.publish(
         "time",
-        `${time.getHours()}:${time.getMinutes()}:${time.getSeconds()}`
+        `${time.getHours().toString().padStart(2, "0")}:${time
+          .getMinutes()
+          .toString()
+          .padStart(2, "0")}:${time.getSeconds().toString().padStart(2, "0")}`
       );
     }, 1000);
 
