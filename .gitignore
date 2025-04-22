@@ -44,3 +44,8 @@ yarn-error.log*
 next-env.d.ts
 
 src/websocket-server/brightness-settings.json
+
+__pycache__/**/*
+.esphome/**/*
+hardware/db-dj-display/.esphome/
+hardware/db-dj-display/custom_components/websocket/__pycache__/

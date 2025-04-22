@@ -1,5 +1,5 @@
-import { EventEmitter } from "events";
-import { spawn } from "child_process";
+import { EventEmitter } from "node:events";
+import { spawn } from "node:child_process";
 
 export interface CommandOutput {
   line: string;
@@ -23,27 +23,27 @@ export class CommandExecutorService extends EventEmitter {
       // Handle stdout
       process.stdout.on("data", (data: Buffer) => {
         const lines = data.toString().split("\n");
-        lines.forEach((line) => {
+        for (const line of lines) {
           if (line.trim()) {
             this.emit("output", {
               line,
               isError: false,
             });
           }
-        });
+        }
       });
 
       // Handle stderr
       process.stderr.on("data", (data: Buffer) => {
         const lines = data.toString().split("\n");
-        lines.forEach((line) => {
+        for (const line of lines) {
           if (line.trim()) {
             this.emit("output", {
               line,
               isError: true,
             });
           }
-        });
+        }
       });
 
       // Handle process completion

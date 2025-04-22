@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { WebSocketService } from "./server";
-import { join } from "path";
+import { join } from "node:path";
+import { readdirSync } from "node:fs";
 
 dotenv.config();
 
@@ -15,7 +16,6 @@ const MAGICQ_OSC_SEND_PORT = Number(process.env.MAGICQ_OSC_SEND_PORT || 9000);
 const BUTTON_CONTROLLER_PORT =
   process.env.BUTTON_CONTROLLER_PORT ||
   ((): string | null => {
-    const { readdirSync } = require("fs");
     const devices = readdirSync("/dev");
     const usbDevices = devices
       .filter(
@@ -48,6 +48,10 @@ const DEFAULT_ACTIVE_BRIGHTNESS = 40;
 // Path to store brightness settings
 const BRIGHTNESS_SETTINGS_PATH = join(__dirname, "brightness-settings.json");
 
+// MQTT configuration
+const MQTT_HOST = process.env.MQTT_HOST || "0.0.0.0";
+const MQTT_PORT = Number(process.env.MQTT_PORT || 1883);
+
 // Handle process termination
 const wsService = new WebSocketService({
   listenIp: LISTEN_IP,
@@ -60,6 +64,8 @@ const wsService = new WebSocketService({
   activeBrightness: DEFAULT_ACTIVE_BRIGHTNESS,
   brightnessSettingsPath: BRIGHTNESS_SETTINGS_PATH,
   wsPort: WS_PORT,
+  mqttHost: MQTT_HOST,
+  mqttPort: MQTT_PORT,
 });
 
 async function shutdown(signal: string) {

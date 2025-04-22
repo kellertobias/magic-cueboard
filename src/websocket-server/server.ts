@@ -3,6 +3,7 @@ import { type MagicQData, MagicQHttpService } from "./services/magicq-http";
 import { MagicQOscService } from "./services/magicq-osc";
 import { ButtonControllerService } from "./services/button-controller";
 import { CommandExecutorService } from "./services/command-executor";
+import { MQTTBrokerService } from "./services/mqtt-broker";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { systemCommands } from "@/system-commands";
 import { WebSocketServer, WebSocket } from "ws";
@@ -14,6 +15,7 @@ export class WebSocketService {
   private magicqOsc: MagicQOscService;
   private buttonController: ButtonControllerService;
   private commandExecutor: CommandExecutorService;
+  private mqttBroker: MQTTBrokerService;
   private brightnessSettings: { inactive: number; active: number };
   private brightnessSettingsPath: string;
 
@@ -45,6 +47,8 @@ export class WebSocketService {
     activeBrightness,
     brightnessSettingsPath,
     wsPort,
+    mqttHost,
+    mqttPort,
   }: {
     listenIp: string;
     magicqIp: string;
@@ -56,6 +60,8 @@ export class WebSocketService {
     activeBrightness: number;
     brightnessSettingsPath: string;
     wsPort: number;
+    mqttHost: string;
+    mqttPort: number;
   }) {
     this.listenIp = listenIp;
     // Load brightness settings from file or use defaults
@@ -75,6 +81,8 @@ export class WebSocketService {
       | BUTTON_CONTROLLER_PORT: ${buttonControllerPort} |
       | INACTIVE_BRIGHTNESS: ${inactiveBrightness} |
       | ACTIVE_BRIGHTNESS: ${activeBrightness} |
+      | MQTT_HOST: ${mqttHost}            |
+      | MQTT_PORT: ${mqttPort}            |
       +----------------------------------+
       `);
 
@@ -94,6 +102,10 @@ export class WebSocketService {
     });
     this.buttonController = new ButtonControllerService(buttonControllerPort);
     this.commandExecutor = new CommandExecutorService();
+    this.mqttBroker = new MQTTBrokerService({
+      port: mqttPort,
+      host: mqttHost,
+    });
 
     // Setup event handlers
     this.setupButtonControllerEvents();
@@ -104,6 +116,7 @@ export class WebSocketService {
 
     this.magicqOsc.start();
     this.buttonController.start();
+    this.mqttBroker.start();
 
     // Start child process if available
     if (existsSync("/home/keller/repos/gm1356/splread")) {
@@ -667,6 +680,10 @@ export class WebSocketService {
             range: data.range,
           },
         });
+
+        // Publish SPL data to MQTT topics
+        this.mqttBroker.publish("spl/value", data.measured);
+        this.mqttBroker.publish("spl/mode", data.mode);
       }
     );
   }
@@ -694,6 +711,7 @@ export class WebSocketService {
       this.childProcess.stop(),
       this.magicqOsc.stop(),
       this.buttonController.stop(),
+      this.mqttBroker.stop(),
     ]);
 
     // Close the WebSocket server
