@@ -36,6 +36,8 @@ export class WebSocketService {
   // Map to store each client's message type preferences
   private clientMessageTypes: Map<WebSocket, string[]> = new Map();
 
+  private timeInterval: NodeJS.Timeout | null = null;
+
   constructor({
     listenIp,
     magicqIp,
@@ -129,6 +131,14 @@ export class WebSocketService {
 
     // Start periodic show loading
     this.startPeriodicShowLoading();
+
+    this.timeInterval = setInterval(() => {
+      const time = new Date();
+      this.mqttBroker.publish(
+        "time",
+        `${time.getHours()}:${time.getMinutes()}:${time.getSeconds()}`
+      );
+    }, 1000);
 
     console.log("Server fully started");
   }
@@ -683,7 +693,7 @@ export class WebSocketService {
 
         // Publish SPL data to MQTT topics
         this.mqttBroker.publish("spl/value", data.measured);
-        this.mqttBroker.publish("spl/mode", data.mode);
+        this.mqttBroker.publish("spl/mode", data.freqMode);
       }
     );
   }
