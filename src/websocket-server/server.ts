@@ -724,6 +724,11 @@ export class WebSocketService {
       this.mqttBroker.stop(),
     ]);
 
+    if (this.timeInterval) {
+      clearInterval(this.timeInterval);
+      this.timeInterval = null;
+    }
+
     // Close the WebSocket server
     await new Promise<void>((resolve, reject) => {
       this.wss.close((err) => {
