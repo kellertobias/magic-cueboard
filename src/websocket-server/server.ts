@@ -657,16 +657,16 @@ export class WebSocketService {
         range: string;
       }) => {
         // Broadcast SPL data to all connected clients
-        this.broadcast({
-          type: "spl",
-          data: {
-            measured: data.measured,
-            timestamp: data.timestamp,
-            mode: data.mode,
-            freqMode: data.freqMode,
-            range: data.range,
-          },
-        });
+        // this.broadcast({
+        //   type: "spl",
+        //   data: {
+        //     measured: data.measured,
+        //     timestamp: data.timestamp,
+        //     mode: data.mode,
+        //     freqMode: data.freqMode,
+        //     range: data.range,
+        //   },
+        // });
       }
     );
   }
