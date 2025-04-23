@@ -25,7 +25,7 @@ logger:
 # Add number components for thresholds
 number:
   - platform: template
-    name: "Threshold Low"
+    name: "Threshold 1 Low"
     id: threshold_low
     min_value: 50
     max_value: 80
@@ -33,13 +33,9 @@ number:
     initial_value: 80
     restore_value: true
     optimistic: true
-    on_value:
-      then:
-        - logger.log:
-            format: "Threshold Low set to: %.1f"
-            args: [x]
+
   - platform: template
-    name: "Threshold Medium"
+    name: "Threshold 2 Medium"
     id: threshold_medium
     min_value: 60
     max_value: 100
@@ -47,13 +43,9 @@ number:
     initial_value: 90
     restore_value: true
     optimistic: true
-    on_value:
-      then:
-        - logger.log:
-            format: "Threshold Medium set to: %.1f"
-            args: [x]
+
   - platform: template
-    name: "Threshold High"
+    name: "Threshold 3 High"
     id: threshold_high
     min_value: 70
     max_value: 110
@@ -61,11 +53,6 @@ number:
     initial_value: 96
     restore_value: true
     optimistic: true
-    on_value:
-      then:
-        - logger.log:
-            format: "Threshold High set to: %.1f"
-            args: [x]
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -94,11 +81,6 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
-  # Enable fallback hotspot (captive portal) in case wifi connection fails
-  ap:
-    ssid: "DJ SPL Meter Fallback Hotspot"
-    password: "XwOBLLOI03H0"
-
 # MQTT Client Configuration
 mqtt:
   broker: !secret mqtt_broker
@@ -120,9 +102,16 @@ mqtt:
         - sensor.template.publish:
             id: spl_average
             state: !lambda return atof(x.c_str());
-        - logger.log:
-            format: "SPL Value: %s"
-            args: [x.c_str()]
+        - lvgl.label.update:
+            id: current_spl_label
+            text: !lambda |-
+              static char buf[32];
+              snprintf(buf, 32, "%.1f dBA", atof(x.c_str()));
+              return buf;
+        - lvgl.bar.update:
+            id: spl_bar
+            value: !lambda |-
+              return min(max((float) atof(x.c_str()), 0.0f), 110.0f);
 
     - topic: "time"
       then:
@@ -147,7 +136,7 @@ sensor:
   - platform: wifi_signal
     name: "WiFi Signal"
     id: wifi_signal_db
-    update_interval: 60s
+    update_interval: 15s
     entity_category: diagnostic
 
   - platform: copy # Reports the WiFi signal strength in %
@@ -162,8 +151,8 @@ sensor:
       - lvgl.label.update:
           id: wifi_label
           text: !lambda |-
-            static char buf[18];
-            snprintf(buf, 18, "WiFi: %.0fdBm ", id(wifi_signal_db).get_state());
+            static char buf[32];
+            snprintf(buf, 32, "WiFi: %.0fdBm ", id(wifi_signal_db).get_state());
             return buf;
 
   - platform: template
@@ -176,27 +165,12 @@ sensor:
           send_every: 5
           send_first_at: 1
     on_value:
-      # Log SPL peak value for monitoring and debugging
-      - logger.log:
-          format: "SPL Peak: %.1f dB"
-          args: [x]
-          level: INFO
       - lvgl.label.update:
           id: spl_value_label
           text: !lambda |-
             static char buf[10];
             snprintf(buf, 10, "%.1f", id(spl_peak).get_state());
             return buf;
-      # - globals.set:
-      #     id: spl_display
-      #     value: !lambda // Format SPL value with exactly 1 decimal place
-      #       char buffer[10];
-      #       snprintf(buffer, sizeof(buffer), "%.1f", x));
-
-      #       return std::string(buffer);
-      # - lvgl.label.update:
-      #     id: spl_value_label
-      #     text: !lambda return id(spl_display).c_str();
 
   - platform: template
     name: "SPL Average"
@@ -207,45 +181,47 @@ sensor:
           window_size: 500
           send_every: 5
     on_value:
-      - logger.log:
-          format: "SPL Average: %.1f dB"
-          args: [x]
-          level: INFO
+      - lvgl.label.update:
+          id: average_spl_label
+          text: !lambda |-
+            static char buf[24];
+            snprintf(buf, 24, "%.1f dB Avg (1m)", x);
+            return buf;
       - if:
           condition:
             lambda: return x < id(threshold_low).state;
           then:
             - lvgl.update:
-                disp_bg_color: 0x00AA00 # Green
+                disp_bg_color: 0x000044 # Dark Green
             - lvgl.label.update:
                 id: status_label
-                text: "Low Volume"
+                text: "Volume Too Low"
           else:
             - if:
                 condition:
                   lambda: return x < id(threshold_medium).state;
                 then:
                   - lvgl.update:
-                      disp_bg_color: 0x777700 # Yellow
+                      disp_bg_color: 0x00AA00 # Green
                   - lvgl.label.update:
                       id: status_label
-                      text: "Medium Volume"
+                      text: "Volume OK"
                 else:
                   - if:
                       condition:
                         lambda: return x < id(threshold_high).state;
                       then:
                         - lvgl.update:
-                            disp_bg_color: 0xAA4400 # Orange
+                            disp_bg_color: 0xAA8800 # Orange
                         - lvgl.label.update:
                             id: status_label
-                            text: "High Volume"
+                            text: "Volume High"
                       else:
                         - lvgl.update:
-                            disp_bg_color: 0xAA0000 # Red
+                            disp_bg_color: 0x990000 # Red
                         - lvgl.label.update:
                             id: status_label
-                            text: "Volume is too high"
+                            text: "Volume Critical"
 
 text_sensor:
   - platform: wifi_info
@@ -277,60 +253,139 @@ lvgl:
       layout:
         type: flex
         flex_flow: column_wrap
-      width: 100%
-      height: 100%
-      bg_color: 0x111111 # Default green background
+      width: 480
+      height: 480
+      bg_color: 0x000000
       bg_opa: 0%
       pad_all: 0
       widgets:
         - label:
             id: wifi_label
             text: "WiFi: ..."
-            width: 100%
-            height: 10%
+            width: 480
+            height: 30
+            pad_right: 10
+            pad_top: 10
             text_align: right
             text_font: roboto16
             text_color: 0xFFFFFF
-            border_width: 1
-            border_color: 0xFF0000
-            border_side: INTERNAL
+            text_opa: 70%
+        - label:
+            width: 480
+            height: 5
+            text: " "
         - label:
             id: time_label
             text: "--:--:--"
-            width: 100%
-            height: 20%
+            y: 80
+            width: 480
+            height: 40
             text_font: roboto48
             text_align: center
             text_color: 0xFFFFFF
         - label:
+            width: 480
+            height: 10
+            text: " "
+        - obj:
+            align: CENTER
+            width: 480
+            height: 30
+            scrollable: false
+            bg_opa: TRANSP
+            border_opa: TRANSP
+            layout: # enable the FLEX layout for the children widgets
+              type: FLEX
+              flex_flow: ROW # the order of the widgets starts top left
+              flex_align_cross: CENTER # they sould be centered
+            widgets:
+              - label:
+                  width: 80
+                  height: 10
+                  text: " "
+              - bar:
+                  id: spl_bar
+                  animated: false
+                  width: 300
+                  height: 10
+                  indicator:
+                    bg_color: 0xFFFFFF
+                  value: 30
+                  min_value: 0
+                  max_value: 110
+                  bg_color: 0x333333
+                  arc_width: 4
+                  pad_all: 3
+              - label:
+                  width: 80
+                  height: 10
+                  text: " "
+        - label:
             id: spl_value_label
             text: "0.0"
-            width: 100%
-            height: 30%
-            y: 30%
-            x: 0%
+            width: 480
+            height: 160
+            y: 140
+            x: 0
             text_align: center
             text_font: font_large
             text_color: 0xFFFFFF
         - label:
             id: spl_unit_label
-            text: "dBA"
-            width: 100%
-            y: 70%
-            x: 0%
+            text: "dBA (Peak 1m)"
+            width: 480
+            y: 300
+            x: 0
             text_font: roboto24
             text_align: center
             text_color: 0xFFFFFF
+            text_opa: 70%
         - label:
             id: status_label
             text_font: roboto24
             text: "Disconnected"
-            width: 100%
-            y: 85%
-            x: 0%
+            width: 480
+            y: 320
+            x: 0
             text_align: center
             text_color: 0xFFFFFF
-            text_opa: 50%
+            text_opa: 70%
+        - label:
+            width: 480
+            height: 10
+            text: " "
+        - obj:
+            align: CENTER
+            width: 480
+            height: 40
+            pad_all: 3
+            y: 320
+            bg_opa: TRANSP
+            scrollable: false
+            border_opa: TRANSP
+            layout: # enable the FLEX layout for the children widgets
+              type: FLEX
+              flex_flow: ROW # the order of the widgets starts top left
+              flex_align_cross: CENTER # they sould be centered
+            widgets:
+              - label:
+                  id: average_spl_label
+                  text: "---.- dBA Avg (1m)"
+                  text_align: left
+                  text_font: roboto24
+                  text_color: 0xFFFFFF
+                  width: 240
+                  height: 24
+                  pad_left: 30
+              - label:
+                  id: current_spl_label
+                  text: "---.- dBA"
+                  text_align: right
+                  text_font: roboto24
+                  text_color: 0xFFFFFF
+                  width: 240
+                  height: 24
+                  pad_right: 50
   on_boot:
     then:
       - lvgl.update:

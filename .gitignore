@@ -47,5 +47,5 @@ src/websocket-server/brightness-settings.json
 
 __pycache__/**/*
 .esphome/**/*
-hardware/db-dj-display/.esphome/
-hardware/db-dj-display/custom_components/websocket/__pycache__/
+hardware/dj-spl-meter/.esphome/
+hardware/dj-spl-meter/custom_components/websocket/__pycache__/
