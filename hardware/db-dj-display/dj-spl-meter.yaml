@@ -22,6 +22,51 @@ logger:
     lvgl: DEBUG
     display: DEBUG
 
+# Add number components for thresholds
+number:
+  - platform: template
+    name: "Threshold Low"
+    id: threshold_low
+    min_value: 50
+    max_value: 80
+    step: 1
+    initial_value: 80
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - logger.log:
+            format: "Threshold Low set to: %.1f"
+            args: [x]
+  - platform: template
+    name: "Threshold Medium"
+    id: threshold_medium
+    min_value: 60
+    max_value: 100
+    step: 1
+    initial_value: 90
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - logger.log:
+            format: "Threshold Medium set to: %.1f"
+            args: [x]
+  - platform: template
+    name: "Threshold High"
+    id: threshold_high
+    min_value: 70
+    max_value: 110
+    step: 1
+    initial_value: 96
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - logger.log:
+            format: "Threshold High set to: %.1f"
+            args: [x]
+
 esp32:
   board: esp32-s3-devkitc-1
   variant: esp32s3
@@ -159,7 +204,7 @@ sensor:
     unit_of_measurement: "dB"
     filters:
       - sliding_window_moving_average:
-          window_size: 50
+          window_size: 500
           send_every: 5
     on_value:
       - logger.log:
@@ -168,7 +213,7 @@ sensor:
           level: INFO
       - if:
           condition:
-            lambda: return x < 20;
+            lambda: return x < id(threshold_low).state;
           then:
             - lvgl.update:
                 disp_bg_color: 0x00AA00 # Green
@@ -178,7 +223,7 @@ sensor:
           else:
             - if:
                 condition:
-                  lambda: return x < 30;
+                  lambda: return x < id(threshold_medium).state;
                 then:
                   - lvgl.update:
                       disp_bg_color: 0x777700 # Yellow
@@ -188,7 +233,7 @@ sensor:
                 else:
                   - if:
                       condition:
-                        lambda: return x < 40;
+                        lambda: return x < id(threshold_high).state;
                       then:
                         - lvgl.update:
                             disp_bg_color: 0xAA4400 # Orange
