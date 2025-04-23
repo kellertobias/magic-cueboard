@@ -1,0 +1,428 @@
+esphome:
+  name: "dj-spl-meter"
+  friendly_name: "DJ SPL Meter"
+  #name_add_mac_suffix: true
+  project:
+    name: "Guition.ESP32_S3_4848S040"
+    version: "1.0.1"
+  platformio_options:
+    board_build.flash_mode: dio
+
+# Enable Home Assistant API
+api:
+  reboot_timeout: 0s
+
+# Enable web logging
+logger:
+  level: DEBUG
+  logs:
+    esphome: DEBUG
+    component: DEBUG
+    wifi: DEBUG
+    lvgl: DEBUG
+    display: DEBUG
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      COMPILER_OPTIMIZATION_SIZE: y
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: y
+      CONFIG_SPIRAM_RODATA: y
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+# Example configuration entry
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "DJ SPL Meter Fallback Hotspot"
+    password: "XwOBLLOI03H0"
+
+# MQTT Client Configuration
+mqtt:
+  broker: !secret mqtt_broker
+  discovery: false # Disable Home Assistant MQTT discovery
+  on_connect:
+    then:
+      - logger.log: "MQTT Connected"
+  on_disconnect:
+    then:
+      - logger.log: "MQTT Disconnected"
+
+  # Subscribe to SPL value topic
+  on_message:
+    - topic: "spl/value"
+      then:
+        - sensor.template.publish:
+            id: spl_peak
+            state: !lambda return atof(x.c_str());
+        - sensor.template.publish:
+            id: spl_average
+            state: !lambda return atof(x.c_str());
+        - logger.log:
+            format: "SPL Value: %s"
+            args: [x.c_str()]
+
+    - topic: "time"
+      then:
+        - lvgl.label.update:
+            id: time_label
+            text: !lambda if(x.length() > 0) {
+              if(x[0] == '"' && x[x.length()-1] == '"') {
+              return x.substr(1, x.length()-2).c_str();
+              } else {
+              return x.c_str();
+              }
+              } else {
+              return "--:--:--";
+              }
+
+web_server:
+  port: 80
+
+captive_portal:
+
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    id: wifi_signal_db
+    update_interval: 60s
+    entity_category: diagnostic
+
+  - platform: copy # Reports the WiFi signal strength in %
+    source_id: wifi_signal_db
+    name: "WiFi Signal Percent"
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: "Signal %"
+    entity_category: "diagnostic"
+    device_class: ""
+    on_value:
+      - lvgl.label.update:
+          id: wifi_label
+          text: !lambda |-
+            static char buf[18];
+            snprintf(buf, 18, "WiFi: %.0fdBm ", id(wifi_signal_db).get_state());
+            return buf;
+
+  - platform: template
+    name: "SPL Peak"
+    id: spl_peak
+    unit_of_measurement: "dB"
+    filters:
+      - max:
+          window_size: 50
+          send_every: 5
+          send_first_at: 1
+    on_value:
+      # Log SPL peak value for monitoring and debugging
+      - logger.log:
+          format: "SPL Peak: %.1f dB"
+          args: [x]
+          level: INFO
+      - lvgl.label.update:
+          id: spl_value_label
+          text: !lambda |-
+            static char buf[10];
+            snprintf(buf, 10, "%.1f", id(spl_peak).get_state());
+            return buf;
+      # - globals.set:
+      #     id: spl_display
+      #     value: !lambda // Format SPL value with exactly 1 decimal place
+      #       char buffer[10];
+      #       snprintf(buffer, sizeof(buffer), "%.1f", x));
+
+      #       return std::string(buffer);
+      # - lvgl.label.update:
+      #     id: spl_value_label
+      #     text: !lambda return id(spl_display).c_str();
+
+  - platform: template
+    name: "SPL Average"
+    id: spl_average
+    unit_of_measurement: "dB"
+    filters:
+      - sliding_window_moving_average:
+          window_size: 50
+          send_every: 5
+    on_value:
+      - logger.log:
+          format: "SPL Average: %.1f dB"
+          args: [x]
+          level: INFO
+      - if:
+          condition:
+            lambda: return x < 20;
+          then:
+            - lvgl.update:
+                disp_bg_color: 0x00AA00 # Green
+            - lvgl.label.update:
+                id: status_label
+                text: "Low Volume"
+          else:
+            - if:
+                condition:
+                  lambda: return x < 30;
+                then:
+                  - lvgl.update:
+                      disp_bg_color: 0x777700 # Yellow
+                  - lvgl.label.update:
+                      id: status_label
+                      text: "Medium Volume"
+                else:
+                  - if:
+                      condition:
+                        lambda: return x < 40;
+                      then:
+                        - lvgl.update:
+                            disp_bg_color: 0xAA4400 # Orange
+                        - lvgl.label.update:
+                            id: status_label
+                            text: "High Volume"
+                      else:
+                        - lvgl.update:
+                            disp_bg_color: 0xAA0000 # Red
+                        - lvgl.label.update:
+                            id: status_label
+                            text: "Volume is too high"
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+      id: ip_address
+      entity_category: diagnostic
+    ssid:
+      name: "Connected SSID"
+      entity_category: diagnostic
+    mac_address:
+      name: "Mac Address"
+      entity_category: diagnostic
+
+#-------------------------------------------
+#-------------------------------------------
+lvgl:
+  id: lvgl_comp
+  displays:
+    - my_display
+  touchscreens:
+    - touchscreen_id: my_touchscreen
+
+  page_wrap: true
+  bg_color: 0x111111
+  pages:
+    - id: main_page
+      skip: false
+      layout:
+        type: flex
+        flex_flow: column_wrap
+      width: 100%
+      height: 100%
+      bg_color: 0x111111 # Default green background
+      bg_opa: 0%
+      pad_all: 0
+      widgets:
+        - label:
+            id: wifi_label
+            text: "WiFi: ..."
+            width: 100%
+            height: 10%
+            text_align: right
+            text_font: roboto16
+            text_color: 0xFFFFFF
+            border_width: 1
+            border_color: 0xFF0000
+            border_side: INTERNAL
+        - label:
+            id: time_label
+            text: "--:--:--"
+            width: 100%
+            height: 20%
+            text_font: roboto48
+            text_align: center
+            text_color: 0xFFFFFF
+        - label:
+            id: spl_value_label
+            text: "0.0"
+            width: 100%
+            height: 30%
+            y: 30%
+            x: 0%
+            text_align: center
+            text_font: font_large
+            text_color: 0xFFFFFF
+        - label:
+            id: spl_unit_label
+            text: "dBA"
+            width: 100%
+            y: 70%
+            x: 0%
+            text_font: roboto24
+            text_align: center
+            text_color: 0xFFFFFF
+        - label:
+            id: status_label
+            text_font: roboto24
+            text: "Disconnected"
+            width: 100%
+            y: 85%
+            x: 0%
+            text_align: center
+            text_color: 0xFFFFFF
+            text_opa: 50%
+  on_boot:
+    then:
+      - lvgl.update:
+          disp_bg_color: 0x111111
+
+#-------------------------------------------
+# Internal outputs
+#-------------------------------------------
+output:
+  # Backlight LED
+  - platform: ledc
+    pin: GPIO38
+    id: GPIO38
+    frequency: 100Hz
+
+#-------------------------------------------
+# Internal lights
+#-------------------------------------------
+light:
+  - platform: monochromatic
+    output: GPIO38
+    name: Backlight
+    id: backlight
+    restore_mode: ALWAYS_ON
+
+#-------------------------------------------
+# Graphics and Fonts
+#-------------------------------------------
+font:
+  - file: "gfonts://Roboto"
+    id: roboto24
+    size: 24
+    bpp: 4
+  - file: "gfonts://Roboto"
+    id: roboto48
+    size: 48
+    bpp: 4
+  - file: "gfonts://Roboto"
+    id: font_large
+    size: 162
+    bpp: 4
+  - file: "gfonts://Roboto"
+    id: roboto16
+    size: 16
+    bpp: 4
+
+#-------------------------------------------
+# Touchscreen gt911 i2c
+#-------------------------------------------
+i2c:
+  - id: bus_a
+    sda: GPIO19
+    scl: GPIO45
+    #frequency: 100kHz
+
+touchscreen:
+  platform: gt911
+  transform:
+    mirror_x: false
+    mirror_y: false
+  id: my_touchscreen
+  display: my_display
+
+  on_touch:
+    - logger.log:
+        format: Touch at (%d, %d)
+        args: [touch.x, touch.y]
+    - lambda: |-
+        ESP_LOGI("cal", "x=%d, y=%d, x_raw=%d, y_raw=%0d",
+            touch.x,
+            touch.y,
+            touch.x_raw,
+            touch.y_raw
+            );
+  on_release:
+    then:
+      - if:
+          condition: lvgl.is_paused
+          then:
+            - light.turn_on: backlight
+            - lvgl.resume:
+            - lvgl.widget.redraw:
+#-------------------------------------------
+# Display st7701s spi
+#-------------------------------------------
+spi:
+  - id: lcd_spi
+    clk_pin: GPIO48
+    mosi_pin: GPIO47
+
+display:
+  - platform: st7701s
+    id: my_display
+    update_interval: never
+    auto_clear_enabled: False
+    spi_mode: MODE3
+    data_rate: 2MHz
+    color_order: RGB
+    invert_colors: False
+    dimensions:
+      width: 480
+      height: 480
+    cs_pin: 39
+    de_pin: 18
+    hsync_pin: 16
+    vsync_pin: 17
+    pclk_pin: 21
+    pclk_frequency: 12MHz
+    pclk_inverted: False
+    hsync_pulse_width: 8
+    hsync_front_porch: 10
+    hsync_back_porch: 20
+    vsync_pulse_width: 8
+    vsync_front_porch: 10
+    vsync_back_porch: 10
+    init_sequence:
+      - 1
+      # Custom sequences are an array, first byte is command, the rest are data.
+      - [0xFF, 0x77, 0x01, 0x00, 0x00, 0x10] # CMD2_BKSEL_BK0
+      - [0xCD, 0x00] # disable MDT flag
+    data_pins:
+      red:
+        - 11 #r1
+        - 12 #r2
+        - 13 #r3
+        - 14 #r4
+        - 0 #r5
+      green:
+        - 8 #g0
+        - 20 #g1
+        - 3 #g2
+        - 46 #g3
+        - 9 #g4
+        - 10 #g5
+      blue:
+        - 4 #b1
+        - 5 #b2
+        - 6 #b3
+        - 7 #b4
+        - 15 #b5
