@@ -1,0 +1,44 @@
+---
+description: 
+globs: hardware/firmware/*
+alwaysApply: false
+---
+# Hardware Configuration
+
+## Pin Assignments
+### Button Matrix
+- Column Pins: 10, 16, 14, 15, A0, A1, 8, 9
+- Row Pins: 3, 4, 5, 6, 7
+
+### Other Hardware
+- LED Data Pin: 2 (WS2812B strip)
+- Potentiometer 1: A2
+- Potentiometer 2: A3
+
+## Matrix Layout
+The button matrix is physically arranged as two 5x4 matrices side by side, creating an 8x5 matrix:
+```
+[0,1,2,3,4]     [Row 1]
+[5,6,7,8,9]     [Row 2]
+[10,11,12,13,14] [Row 3]
+[15,16,17,18,19] [Row 4]
+[39,38,37,36,35] [Row 5]
+[34,33,32,31,30] [Row 6]
+[29,28,27,26,25] [Row 7]
+[24,23,22,21,20] [Row 8]
+```
+
+## LED Mapping
+The WS2812B LED strip is wired in a serpentine pattern. The mapping between logical button positions and physical LED positions is defined in [firmware.ino](mdc:hardware/firmware/firmware.ino).
+
+## Configuration Constants
+- Debounce Delay: 10ms
+- LED Blink Interval: 500ms
+- Potentiometer Deadzone: 5 units
+- Default Inactive Brightness: 25
+- Default Active Brightness: 40
+- Pressed Brightness: 255 (fixed)
+
+## Communication
+- Serial Baud Rate: 115200
+- Protocol: 8N1 (8 data bits, no parity, 1 stop bit)

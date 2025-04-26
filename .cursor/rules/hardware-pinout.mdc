@@ -1,0 +1,43 @@
+---
+description: 
+globs: hardware/dj-spl-meter/*
+alwaysApply: false
+---
+# Hardware Configuration and Pinout
+
+## Display Configuration (ST7701S)
+The main display uses SPI for control and parallel RGB for data transfer:
+- SPI Control Pins:
+  - CLK: GPIO48
+  - MOSI: GPIO47
+  - CS: GPIO39
+- Display Control:
+  - DE: GPIO18
+  - HSYNC: GPIO16
+  - VSYNC: GPIO17
+  - PCLK: GPIO21
+- RGB Data Pins:
+  - Red: GPIO11, GPIO12, GPIO13, GPIO14, GPIO0
+  - Green: GPIO8, GPIO20, GPIO3, GPIO46, GPIO9, GPIO10
+  - Blue: GPIO4, GPIO5, GPIO6, GPIO7, GPIO15
+
+## Touchscreen Configuration (GT911)
+I2C interface for touch control:
+- SDA: GPIO19
+- SCL: GPIO45
+
+## Additional Hardware
+- Backlight Control: GPIO38 (PWM via LEDC)
+
+## Hardware Specifications
+- Display Resolution: 480x480 pixels
+- Display Color: RGB
+- PCLK Frequency: 12MHz
+- Touch Resolution: Matches display (480x480)
+
+## Memory Configuration
+- PSRAM: Octal mode @ 80MHz
+- Flash Size: 16MB
+
+## Notes
+All pin configurations can be found in [dj-spl-meter.yaml](mdc:hardware/db-dj-display/dj-spl-meter.yaml)

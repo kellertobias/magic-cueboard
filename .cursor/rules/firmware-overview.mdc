@@ -1,0 +1,35 @@
+---
+description: 
+globs: hardware/firmware/*
+alwaysApply: false
+---
+# Light Assistant Button Controller Firmware
+
+## Overview
+The main firmware file [firmware.ino](mdc:hardware/firmware/firmware.ino) implements a 40-button controller with RGB LED feedback. This controller serves as the primary input device for the Light Assistant system.
+
+## Key Features
+- 40 RGB LED backlit buttons arranged in an 8x5 matrix
+- Three button states: inactive, active, pressed
+- Two analog potentiometers for continuous control
+- Serial communication with host computer
+- Configurable LED brightness levels
+- Support for multiple simultaneous button presses
+
+## Communication Protocol
+### Host to Device Commands
+- `Cxxx:rgb` - Set button color (xxx=button number, rgb=hex color)
+- `Axxx:1/0` - Set button active state
+- `Bii:aa` - Set brightness levels (ii=inactive hex, aa=active hex)
+- `X` - Host connected signal
+
+### Device to Host Messages
+- `Pxxx` - Button press event (xxx=button number)
+- `Rxxx` - Button release event
+- `Vxx:yy` - Potentiometer value (xx=pot number, yy=hex value)
+
+## Core Components
+- Button Matrix: 8 columns × 5 rows
+- WS2812B RGB LED strip
+- Arduino-compatible microcontroller
+- Two analog potentiometers

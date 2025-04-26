@@ -1,0 +1,46 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Light Assistant Project Overview
+
+## Project Description
+Light Assistant is a full-stack application for controlling and monitoring lighting systems, with a focus on DJ and entertainment environments. It combines hardware control with a modern web interface.
+
+## Repository Structure
+
+### Frontend ([src/](mdc:src))
+- [src/app/](mdc:src/app) - Next.js application pages and routes
+- [src/components/](mdc:src/components) - Reusable React components
+- [src/contexts/](mdc:src/contexts) - React context providers
+- [src/hooks/](mdc:src/hooks) - Custom React hooks
+- [src/websocket-server/](mdc:src/websocket-server) - WebSocket server for real-time communication
+
+### Hardware ([hardware/](mdc:hardware))
+- [hardware/dj-spl-meter/](mdc:hardware/dj-spl-meter) - SPL meter implementation
+- [hardware/firmware/](mdc:hardware/firmware) - Device firmware
+- [hardware/enclosure/](mdc:hardware/enclosure) - Hardware enclosure designs
+- [hardware/kicad/](mdc:hardware/kicad) - PCB and schematic files
+
+### Documentation
+- [docs/](mdc:docs) - Project documentation
+- [README.md](mdc:README.md) - Getting started guide
+
+## Key Technologies
+- Next.js for the web application
+- TypeScript for type safety
+- Tailwind CSS for styling
+- WebSocket for real-time communication
+- ESPHome for hardware control
+
+## Configuration Files
+- [next.config.js](mdc:next.config.js) - Next.js configuration
+- [tsconfig.json](mdc:tsconfig.json) - TypeScript settings
+- [tailwind.config.js](mdc:tailwind.config.js) - Tailwind CSS configuration
+- [eslint.config.js](mdc:eslint.config.js) - ESLint rules
+
+## Related Documentation
+- [software-architecture.mdc](mdc:.cursor/rules/software-architecture.mdc) - Detailed software architecture
+- [hardware-configuration.mdc](mdc:.cursor/rules/hardware-configuration.mdc) - Hardware setup
+- [dj-spl-meter.mdc](mdc:.cursor/rules/dj-spl-meter.mdc) - SPL meter documentation

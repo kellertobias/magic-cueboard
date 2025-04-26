@@ -1,0 +1,64 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Development Workflow Guide
+
+## Development Environment Setup
+
+### Prerequisites
+- Node.js and npm (version specified in [package.json](mdc:package.json))
+- ESPHome for hardware development
+- KiCad for hardware design (optional)
+
+### Initial Setup
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Copy `.env.example` to `.env` and configure environment variables
+4. Set up hardware development environment if needed
+
+## Development Workflow
+
+### Frontend Development
+1. Start the development server: `npm run dev`
+2. Access the application at `localhost:3000`
+3. Make changes in [src/](mdc:src) directory
+4. Use TypeScript and ESLint for code quality
+
+### Hardware Development
+1. Navigate to [hardware/](mdc:hardware) directory
+2. Follow setup in [hardware-configuration.mdc](mdc:.cursor/rules/hardware-configuration.mdc)
+3. Use ESPHome for firmware development
+4. Test changes with physical hardware
+
+## Code Quality Tools
+
+### Linting and Formatting
+- ESLint configuration in [eslint.config.js](mdc:eslint.config.js)
+- TypeScript checking with [tsconfig.json](mdc:tsconfig.json)
+- Prettier for code formatting
+
+### Testing
+- Unit tests with Jest
+- Component testing with React Testing Library
+- Hardware testing procedures in documentation
+
+## Build and Deployment
+
+### Frontend Build
+1. Run `npm run build` to create production build
+2. Use [build.sh](mdc:build.sh) for automated build process
+3. Deploy built assets from `.next` directory
+
+### Hardware Deployment
+1. Follow ESPHome deployment process
+2. Use OTA updates when possible
+3. Refer to hardware documentation for specific procedures
+
+## Best Practices
+- Follow TypeScript type safety guidelines
+- Use component-based architecture
+- Document API changes
+- Test hardware changes thoroughly
+- Keep documentation updated

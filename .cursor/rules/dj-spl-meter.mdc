@@ -1,0 +1,56 @@
+---
+description: 
+globs: hardware/dj-spl-meter/*
+alwaysApply: false
+---
+# DJ SPL Meter Project Documentation
+
+## Project Overview
+The DJ SPL Meter is an ESPHome-based sound pressure level meter with a graphical display. The main configuration file is [dj-spl-meter.yaml](mdc:hardware/db-dj-display/dj-spl-meter.yaml).
+
+## Hardware Components
+- ESP32-S3 DevKitC-1 board
+- ST7701S-based 480x480 LCD display
+- GT911 touchscreen controller
+- External SPL sensor (connected via MQTT)
+
+## Key Features
+1. Real-time SPL monitoring with peak and average measurements
+2. Configurable volume thresholds with visual indicators
+3. WiFi connectivity with MQTT integration
+4. Touch-enabled display interface
+5. Time display synchronization
+
+## Configuration Structure
+The main configuration file is organized into these sections:
+1. Core ESPHome configuration
+2. Network and API settings (WiFi, MQTT, API)
+3. Sensor configurations
+4. Display and UI components
+5. Hardware interfaces (I2C, SPI)
+
+## User Interface
+The display shows:
+- Current SPL value in large digits
+- Average SPL over 1-minute window
+- Peak SPL measurements
+- Visual status indicators
+- Time display
+- WiFi connection status
+
+## Volume Thresholds
+Three configurable thresholds with corresponding visual indicators:
+- Low: Default 80 dB (Green)
+- Medium: Default 90 dB (Yellow)
+- High: Default 96 dB (Red)
+
+## Dependencies
+- ESPHome framework
+- ESP-IDF
+- LVGL for graphics
+- External MQTT broker for SPL data
+
+## Notes
+- The project uses PSRAM for enhanced memory capabilities
+- Secrets are stored in [secrets.yaml](mdc:hardware/db-dj-display/secrets.yaml)
+- Display updates are optimized for performance

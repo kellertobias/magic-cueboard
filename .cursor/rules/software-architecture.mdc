@@ -1,0 +1,51 @@
+---
+description: 
+globs: hardware/firmware/*
+alwaysApply: false
+---
+# Software Architecture
+
+## Core Functions
+### Setup and Initialization
+- `setup()`: Initializes hardware, LED strip, and serial communication
+- `loop()`: Main program loop handling all core functionality
+
+### Button and LED Management
+- `scanButtons()`: Scans button matrix for state changes
+- `updateButtonLED(button)`: Updates LED state for a specific button
+- `updateAllLEDs()`: Updates all LEDs after brightness changes
+
+### Communication Handling
+- `processCommand(cmd)`: Processes incoming serial commands
+- `parseColor(hex)`: Converts 3-digit hex color to RGB values
+- `parseHex(hex)`: Parses 2-digit hex numbers
+- `parseHexDigit(hex)`: Converts single hex digit to numeric value
+
+### Input Processing
+- `scanPotentiometers()`: Reads and processes potentiometer values
+- Button state tracking via `buttonStates[]` array
+- Active state tracking via `buttonActive[]` array
+
+## State Management
+### Global State Variables
+- Button States: Physical state of each button
+- Button Colors: Current color for each LED
+- Brightness Levels: Inactive and active brightness values
+- Connection Status: Host connection state
+- Potentiometer Values: Current and last values
+
+### LED States
+1. Pressed: White at full brightness (255)
+2. Active: Assigned color at active brightness
+3. Inactive: Assigned color at inactive brightness
+
+## Dependencies
+- Adafruit_NeoPixel library for LED control
+- Arduino standard libraries
+- Hardware-specific pin definitions
+
+## Error Handling
+- Serial buffer overflow protection
+- Potentiometer value debouncing
+- Button debouncing
+- Invalid command filtering
