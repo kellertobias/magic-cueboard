@@ -1,4 +1,4 @@
-import { EventEmitter } from "events";
+import { EventEmitter } from "node:events";
 import { SerialPort } from "serialport";
 import { ReadlineParser } from "@serialport/parser-readline";
 
@@ -161,20 +161,22 @@ export class ButtonControllerService extends EventEmitter {
 
     // Send all button colors
     for (const [button, color] of this.buttonColors) {
-      this.sendCommand(
-        `C${this.externalToInternalButton(button)
-          .toString()
-          .padStart(3, "0")}:${color}`
-      );
+      const internalButton = this.externalToInternalButton(button);
+      if (internalButton) {
+        this.sendCommand(
+          `C${internalButton.toString().padStart(3, "0")}:${color}`
+        );
+      }
     }
 
     // Send all button states
     for (const [button, state] of this.buttonStates) {
-      this.sendCommand(
-        `A${this.externalToInternalButton(button)
-          .toString()
-          .padStart(3, "0")}:${state ? "1" : "0"}`
-      );
+      const internalButton = this.externalToInternalButton(button);
+      if (internalButton) {
+        this.sendCommand(
+          `A${internalButton.toString().padStart(3, "0")}:${state ? "1" : "0"}`
+        );
+      }
     }
   }
 
@@ -184,11 +186,12 @@ export class ButtonControllerService extends EventEmitter {
   public setButtonColor(button: number, color: string): void {
     if (!this.isConnected) return;
     this.buttonColors.set(button, color);
-    this.sendCommand(
-      `C${this.externalToInternalButton(button)
-        .toString()
-        .padStart(3, "0")}:${color}`
-    );
+    const internalButton = this.externalToInternalButton(button);
+    if (internalButton) {
+      this.sendCommand(
+        `C${internalButton.toString().padStart(3, "0")}:${color}`
+      );
+    }
   }
 
   /**
@@ -197,11 +200,12 @@ export class ButtonControllerService extends EventEmitter {
   public setButtonActive(button: number, active: boolean): void {
     if (!this.isConnected) return;
     this.buttonStates.set(button, active);
-    this.sendCommand(
-      `A${this.externalToInternalButton(button).toString().padStart(3, "0")}:${
-        active ? "1" : "0"
-      }`
-    );
+    const internalButton = this.externalToInternalButton(button);
+    if (internalButton) {
+      this.sendCommand(
+        `A${internalButton.toString().padStart(3, "0")}:${active ? "1" : "0"}`
+      );
+    }
   }
 
   /**
@@ -255,20 +259,25 @@ export class ButtonControllerService extends EventEmitter {
    * Handles incoming messages from the device
    */
   private handleMessage(message: string): void {
-    console.log("[Hardware] Received message:", message);
     if (message.startsWith("P")) {
       // Button pressed
-      const button = parseInt(message.slice(1), 10);
-      this.emit("buttonPressed", this.internalToExternalButton(button));
+      const button = Number.parseInt(message.slice(1), 10);
+      const externalButton = this.internalToExternalButton(button);
+      if (externalButton) {
+        this.emit("buttonPressed", externalButton);
+      }
     } else if (message.startsWith("R")) {
       // Button released
-      const button = parseInt(message.slice(1), 10);
-      this.emit("buttonReleased", this.internalToExternalButton(button));
+      const button = Number.parseInt(message.slice(1), 10);
+      const externalButton = this.internalToExternalButton(button);
+      if (externalButton) {
+        this.emit("buttonReleased", externalButton);
+      }
     } else if (message.startsWith("V")) {
       // Potentiometer value
       const [pot, value] = message.slice(1).split(":");
-      const potNumber = parseInt(pot, 10);
-      const potValue = parseInt(value, 16);
+      const potNumber = Number.parseInt(pot, 10);
+      const potValue = Number.parseInt(value, 16);
       this.emit("potValue", potNumber, potValue);
     }
   }
@@ -278,8 +287,7 @@ export class ButtonControllerService extends EventEmitter {
    */
   private sendCommand(command: string): void {
     if (!this.isConnected || !this.port) return;
-    console.log("[Hardware] Sending command:", command);
-    this.port.write(command + "\n");
+    this.port.write(`${command}\n`);
   }
 
   /**
@@ -293,16 +301,23 @@ export class ButtonControllerService extends EventEmitter {
    * Converts internal button numbers (0-39) to external button numbers (1-40)
    * Internal numbers are arranged in 5x8 grid, external in 10x4 grid
    */
-  private internalToExternalButton(button: number): number {
-    return controllerToServer.get(button)!;
+  private internalToExternalButton(button: number): number | null {
+    const result = controllerToServer.get(button);
+    if (!result) {
+      return null;
+    }
+    return result;
   }
 
   /**
    * Converts external button numbers (1-40) to internal button numbers (0-39)
    * External numbers are arranged in 10x4 grid, internal in 5x8 grid
    */
-  private externalToInternalButton(button: number): number {
-    console.log("[Hardware] External to internal button:", button);
-    return serverToController.get(button + 1)! - 1;
+  private externalToInternalButton(button: number): number | null {
+    const result = serverToController.get(button + 1);
+    if (!result) {
+      return null;
+    }
+    return result - 1;
   }
 }

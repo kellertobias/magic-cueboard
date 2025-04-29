@@ -192,6 +192,7 @@ export class WebSocketService {
       });
 
       // Update button state if it's a button executor
+      // Note: Configuration messages are already filtered out by the OSC service
       if (data.exec <= 40) {
         console.log("Setting button active:", data.exec - 1, data.value > 0);
         this.buttonController.setButtonActive(data.exec - 1, data.value > 0);

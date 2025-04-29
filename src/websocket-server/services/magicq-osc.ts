@@ -175,7 +175,7 @@ export class MagicQOscService extends EventEmitter {
       const match = message.address.match(/^\/exec\/1\/(\d+)$/);
       if (match && message.args.length > 0) {
         const exec = Number.parseInt(match[1], 10);
-        const isInfoExec = exec % 20 > 10;
+        const isInfoExec = (exec - 1) % 20 > 10;
         const executorNumber = getExecutorNumber(exec);
         const value = message.args[0] as number;
 

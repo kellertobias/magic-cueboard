@@ -19,7 +19,7 @@ export interface MagicQData {
  * Service for interacting with MagicQ's web interface
  */
 export class MagicQHttpService {
-  constructor(private baseUrl: string = "http://localhost:8080") {}
+  constructor(private baseUrl = "http://localhost:8080") {}
 
   /**
    * Fetches show name and executor data from MagicQ
@@ -119,15 +119,15 @@ export class MagicQHttpService {
       > = {};
       const items = dom.window.document.querySelectorAll("input");
 
-      items.forEach((row) => {
+      for (const row of items) {
         const index = Number(row.name);
         const value = row.value;
 
         const execNumber = getExecutorNumber(index);
 
-        if (isNaN(execNumber)) {
+        if (Number.isNaN(execNumber)) {
           console.log(`Invalid executor number: ${execNumber}`);
-          return;
+          continue;
         }
 
         executors[execNumber] = executors[execNumber] || {};
@@ -156,7 +156,7 @@ export class MagicQHttpService {
               break;
           }
         }
-      });
+      }
       return executors;
     } catch (error) {
       console.error("Error fetching executors:", String(error));
