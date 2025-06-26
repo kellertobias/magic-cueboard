@@ -26,6 +26,7 @@ export class MagicQHttpService {
    */
   public async fetchData(): Promise<MagicQData | { error: string }> {
     try {
+      console.log(" ---- START FETCHING FROM MAGICQ HTTP ----");
       // Fetch both pages in parallel
       const [showName, executors] = await Promise.all([
         this.fetchShowName(),
@@ -52,9 +53,11 @@ export class MagicQHttpService {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      console.log(" ---- FETCHED SHOW NAME FROM MAGICQ HTTP ----");
 
       const html = await response.text();
       const dom = new JSDOM(html);
+      console.log(" ---- PARSED SHOW NAME FROM MAGICQ HTTP ----");
 
       // Find show name in tables
       const tables = dom.window.document.querySelectorAll("table");
@@ -69,11 +72,14 @@ export class MagicQHttpService {
                 showNameCell?.split("MagicQ/show/").pop() ||
                 showNameCell?.split("/home/keller/").pop() ||
                 showNameCell;
+              console.log(" ---- SHOW NAME FOUND FROM MAGICQ HTTP ----");
+              console.log(`      SHOW NAME: ${showName}`);
               return showName;
             }
           }
         }
       }
+      console.log(" ---- NO SHOW NAME FOUND FROM MAGICQ HTTP ----");
 
       return null;
     } catch (error) {
@@ -97,15 +103,21 @@ export class MagicQHttpService {
       }
     >
   > {
-    console.log(`Fetching executors from ${this.baseUrl}`);
+    console.log(` ---- START FETCHING EXECUTORS FROM MAGICQ HTTP ----`);
     try {
       const response = await fetch(`${this.baseUrl}/exec.html`);
       if (!response.ok) {
+        console.log(
+          " ---- HTTP ERROR FETCHING EXECUTORS FROM MAGICQ HTTP ----"
+        );
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      console.log(" ---- FETCHED EXECUTORS FROM MAGICQ HTTP ----");
 
       const html = await response.text();
+      console.log(" ---- PARSED EXECUTORS FROM MAGICQ HTTP ----");
       const dom = new JSDOM(html);
+      console.log(" ---- DOM PARSED FROM MAGICQ HTTP ----");
 
       const executors: Record<
         number,
@@ -118,7 +130,7 @@ export class MagicQHttpService {
         }
       > = {};
       const items = dom.window.document.querySelectorAll("input");
-
+      console.log(" ---- FOUND EXECUTORS FROM MAGICQ HTTP ----");
       for (const row of items) {
         const index = Number(row.name);
         const value = row.value;
@@ -156,6 +168,10 @@ export class MagicQHttpService {
               break;
           }
         }
+      }
+      console.log(" ---- EXECUTORS FROM MAGICQ HTTP ----");
+      for (const executor of Object.values(executors)) {
+        console.log(`      ${executor.number}: ${executor.name}`);
       }
       return executors;
     } catch (error) {

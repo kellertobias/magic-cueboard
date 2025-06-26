@@ -48,6 +48,7 @@ export class MagicQOscService extends EventEmitter {
 
     // Set up receiver event handlers
     this.oscReceiver.on("open", () => {
+      console.log(" ---- OSC RECEIVER OPENED ----");
       console.log(
         `[OSC] receiver started on ${this.connection.receiveAddress}:${this.connection.receivePort}`
       );
@@ -147,19 +148,19 @@ export class MagicQOscService extends EventEmitter {
     this.feedbackInterval = setInterval(() => {
       try {
         console.log("[OSC] Sending feedback request");
-        const message = new OSC.Message("/feedback/exec", true);
         if (this.connected) {
+          const message = new OSC.Message("/feedback/exec", true);
           this.oscSender.send(message);
         }
       } catch (error) {
         console.error("[OSC] Error sending feedback request:", error);
       }
-    }, 15000); // 1 minute
+    }, 10000); // 1 minute
 
     // Send initial feedback request
     console.log("[OSC] Sending feedback request");
-    const message = new OSC.Message("/feedback/exec", true);
     if (this.connected) {
+      const message = new OSC.Message("/feedback/exec", true);
       this.oscSender.send(message);
     }
   }
