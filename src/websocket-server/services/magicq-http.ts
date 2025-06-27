@@ -116,6 +116,7 @@ export class MagicQHttpService {
 
       const html = await response.text();
       console.log(" ---- PARSED EXECUTORS FROM MAGICQ HTTP ----");
+      console.log(html);
       const dom = new JSDOM(html);
       console.log(" ---- DOM PARSED FROM MAGICQ HTTP ----");
 
