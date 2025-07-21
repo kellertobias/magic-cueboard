@@ -4,6 +4,10 @@ import { MagicQOscService } from "./services/magicq-osc";
 import { ButtonControllerService } from "./services/button-controller";
 import { CommandExecutorService } from "./services/command-executor";
 import { MQTTBrokerService } from "./services/mqtt-broker";
+import {
+  type ProgrammerData,
+  MagicQProgrammerService,
+} from "./services/magicq-programmer";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { systemCommands } from "@/system-commands";
 import { WebSocketServer, WebSocket } from "ws";
@@ -13,6 +17,7 @@ export class WebSocketService {
   private childProcess: ChildProcess;
   private magicqHttp: MagicQHttpService;
   private magicqOsc: MagicQOscService;
+  private magicqProgrammer: MagicQProgrammerService;
   private buttonController: ButtonControllerService;
   private commandExecutor: CommandExecutorService;
   private mqttBroker: MQTTBrokerService;
@@ -102,6 +107,9 @@ export class WebSocketService {
       receiveAddress: listenIp,
       sendAddress: magicqIp,
     });
+    this.magicqProgrammer = new MagicQProgrammerService(
+      `http://${magicqIp}:${magicqHttpPort}`
+    );
     this.buttonController = new ButtonControllerService(buttonControllerPort);
     this.commandExecutor = new CommandExecutorService();
     this.mqttBroker = new MQTTBrokerService({
@@ -112,11 +120,13 @@ export class WebSocketService {
     // Setup event handlers
     this.setupButtonControllerEvents();
     this.setupMagicQOscEvents();
+    this.setupMagicQProgrammerEvents();
     this.setupWebSocketServer();
     this.setupCommandExecutorEvents();
     this.setupSPLMeterEvents();
 
     this.magicqOsc.start();
+    this.magicqProgrammer.start();
     this.buttonController.start();
     this.mqttBroker.start();
 
@@ -201,6 +211,30 @@ export class WebSocketService {
   }
 
   /**
+   * Sets up event handlers for the MagicQ Programmer service
+   */
+  private setupMagicQProgrammerEvents(): void {
+    this.magicqProgrammer.on("programmerUpdate", (data: ProgrammerData) => {
+      console.log("[MagicQ Programmer] Data updated, broadcasting to clients");
+      // Broadcast programmer data to all connected clients
+      this.broadcast({
+        type: "programmer-update",
+        data: data,
+      });
+    });
+
+    this.magicqProgrammer.on("error", (error: Error) => {
+      console.error("[MagicQ Programmer] Service error:", error);
+
+      // Broadcast error to clients
+      this.broadcast({
+        type: "programmer-error",
+        data: { error: error.message },
+      });
+    });
+  }
+
+  /**
    * Sets up the WebSocket server and its event handlers
    */
   private setupWebSocketServer(): void {
@@ -218,6 +252,13 @@ export class WebSocketService {
         JSON.stringify({
           type: "brightness-values",
           data: this.brightnessSettings,
+        })
+      );
+
+      ws.send(
+        JSON.stringify({
+          type: "programmer-update",
+          data: this.magicqProgrammer.getCurrentState(),
         })
       );
 
@@ -286,6 +327,10 @@ export class WebSocketService {
               data: this.brightnessSettings,
             })
           );
+          break;
+
+        case "get-programmer":
+          await this.handleGetProgrammer(ws);
           break;
 
         case "system-command":
@@ -380,6 +425,29 @@ export class WebSocketService {
         JSON.stringify({
           type: "error",
           error: "Failed to set brightness",
+        })
+      );
+    }
+  }
+
+  /**
+   * Handles the get-programmer message
+   */
+  private async handleGetProgrammer(ws: WebSocket): Promise<void> {
+    try {
+      const programmerData = await this.magicqProgrammer.getCurrentState();
+      ws.send(
+        JSON.stringify({
+          type: "programmer-data",
+          data: programmerData,
+        })
+      );
+    } catch (error) {
+      console.error("Error getting programmer data:", error);
+      ws.send(
+        JSON.stringify({
+          type: "error",
+          error: "Failed to get programmer data",
         })
       );
     }
@@ -724,6 +792,7 @@ export class WebSocketService {
     await Promise.all([
       this.childProcess.stop(),
       this.magicqOsc.stop(),
+      this.magicqProgrammer.stop(),
       this.buttonController.stop(),
       this.mqttBroker.stop(),
     ]);
