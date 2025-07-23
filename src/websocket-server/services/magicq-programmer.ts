@@ -24,14 +24,14 @@ export interface ProgrammerData {
 
 /**
  * Service for monitoring MagicQ's programmer window
- * Fetches /prog.html every 0.5 seconds and emits events when data changes
+ * Fetches /prog.html on-demand when requested by clients
+ * Throttled to maximum 2 requests per second across all clients
  */
 export class MagicQProgrammerService extends EventEmitter {
-  private pollInterval: NodeJS.Timeout | null = null;
-  private lastDataHash: string | null = null;
-  private isPolling = false;
-
-  private lastData: ProgrammerData | null = null;
+  // Throttling mechanism - max 2 requests per second
+  private lastFetchTime: number = 0;
+  private readonly THROTTLE_INTERVAL = 500; // 500ms = 2 requests per second
+  private pendingFetch: NodeJS.Timeout | null = null;
 
   /**
    * Parameter grouping mapping - defines how individual parameters are grouped together
@@ -42,58 +42,44 @@ export class MagicQProgrammerService extends EventEmitter {
   }
 
   /**
-   * Starts polling the programmer data every 500ms
+   * Requests programmer data with throttling
+   * Multiple calls within the throttle window will be batched
    */
-  public start(): void {
-    if (this.isPolling) {
-      console.log(
-        "[MagicQ Programmer] Already polling, ignoring start request"
-      );
-      return;
+  public requestUpdate(): void {
+    const now = Date.now();
+    const timeSinceLastFetch = now - this.lastFetchTime;
+
+    if (timeSinceLastFetch >= this.THROTTLE_INTERVAL) {
+      // Can fetch immediately
+      this.performFetch();
+    } else {
+      // Need to throttle - schedule fetch for later if not already scheduled
+      if (!this.pendingFetch) {
+        const delay = this.THROTTLE_INTERVAL - timeSinceLastFetch;
+        console.log(
+          `[MagicQ Programmer] Throttling fetch, delaying ${delay}ms`
+        );
+
+        this.pendingFetch = setTimeout(() => {
+          this.pendingFetch = null;
+          this.performFetch();
+        }, delay);
+      }
     }
-
-    console.log("[MagicQ Programmer] Starting programmer data polling");
-    this.isPolling = true;
-
-    // Fetch immediately, then start interval
-    this.fetchAndCheckChanges();
-
-    this.pollInterval = setInterval(() => {
-      this.fetchAndCheckChanges();
-    }, 500);
   }
 
   /**
-   * Stops polling the programmer data
+   * Performs the actual data fetch and processing
    */
-  public async stop(): Promise<void> {
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-      this.pollInterval = null;
-    }
-    this.isPolling = false;
-    this.lastDataHash = null;
-    console.log("[MagicQ Programmer] Stopped programmer data polling");
-  }
-
-  /**
-   * Fetches programmer data and checks if it has changed
-   */
-  private async fetchAndCheckChanges(): Promise<void> {
+  private async performFetch(): Promise<void> {
     try {
+      this.lastFetchTime = Date.now();
+      console.log("[MagicQ Programmer] Fetching programmer data on demand");
+
       const data = await this.fetchProgrammerData();
       if (!data) return;
 
-      // Create a hash of the data to detect changes
-      const dataHash = JSON.stringify(data);
-
-      if (this.lastDataHash !== dataHash) {
-        console.log("[MagicQ Programmer] Data changed, emitting update");
-        this.lastDataHash = dataHash;
-        this.lastData = data;
-        // Emit the programmer data change event
-        this.emit("programmerUpdate", data);
-      }
+      this.emit("programmerUpdate", data);
     } catch (error) {
       console.error(
         "[MagicQ Programmer] Error fetching programmer data:",
@@ -101,6 +87,24 @@ export class MagicQProgrammerService extends EventEmitter {
       );
       this.emit("error", error);
     }
+  }
+
+  /**
+   * Starts the service (no longer polls continuously)
+   */
+  public start(): void {
+    console.log("[MagicQ Programmer] Service started (on-demand mode)");
+  }
+
+  /**
+   * Stops the service and clears any pending fetches
+   */
+  public async stop(): Promise<void> {
+    if (this.pendingFetch) {
+      clearTimeout(this.pendingFetch);
+      this.pendingFetch = null;
+    }
+    console.log("[MagicQ Programmer] Service stopped");
   }
 
   /**
@@ -209,12 +213,5 @@ export class MagicQProgrammerService extends EventEmitter {
       heads,
       timestamp: Date.now(),
     };
-  }
-
-  /**
-   * Gets the current state of the programmer data (for immediate access)
-   */
-  public getCurrentState(): ProgrammerData | null {
-    return this.lastData;
   }
 }

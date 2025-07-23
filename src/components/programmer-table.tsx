@@ -52,7 +52,18 @@ export function ProgrammerTable() {
     }
   }, []);
 
-  useWebSocket(handleMessage, []);
+  const { sendMessage } = useWebSocket(handleMessage, []);
+
+  // Request only programmer updates when component mounts
+  useEffect(() => {
+    const interval = setInterval(() => {
+      sendMessage({
+        type: "get-programmer",
+      });
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [sendMessage]);
 
   /**
    * Renders parameter values for a given column and head
@@ -84,15 +95,30 @@ export function ProgrammerTable() {
   };
 
   return (
-    <div className="h-full w-full px-4 py-10">
+    <div className="h-full w-full px-4 py-10 relative">
+      {heads.length === 0 && (
+        <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center">
+          <div className="text-gray-500 text-sm">Programmer is Empty</div>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full border-separate border-spacing-0 font-mono">
           <thead>
             <tr>
-              <th className="w-[75px] px-3 py-2 text-left font-semibold text-gray-200 bg-gray-950 border-t border-l border-gray-700 rounded-tl-lg">
+              <th
+                className={clsx(
+                  "w-[75px] px-3 py-2 text-left font-semibold text-gray-200 bg-gray-950 border-t border-l border-gray-700 rounded-tl-lg",
+                  heads.length === 0 && "border-b rounded-bl-lg"
+                )}
+              >
                 #
               </th>
-              <th className="w-[200px] px-3 py-2 text-left font-semibold text-gray-200 bg-gray-950 border-t border-l border-gray-700">
+              <th
+                className={clsx(
+                  "w-[200px] px-3 py-2 text-left font-semibold text-gray-200 bg-gray-950 border-t border-l border-gray-700",
+                  heads.length === 0 && "border-b"
+                )}
+              >
                 Head
               </th>
               {columns.map((column, index) => (
@@ -100,7 +126,11 @@ export function ProgrammerTable() {
                   key={column}
                   className={clsx(
                     "w-[120px] px-3 py-2 text-left font-semibold text-gray-200 bg-gray-950 border-t border-l border-gray-700",
-                    index === columns.length - 1 && "border-r rounded-tr-lg"
+                    index === columns.length - 1 && "border-r rounded-tr-lg",
+                    index === columns.length - 1 &&
+                      heads.length === 0 &&
+                      "rounded-br-lg",
+                    heads.length === 0 && "border-b"
                   )}
                 >
                   {column}

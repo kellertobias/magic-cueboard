@@ -124,4 +124,6 @@ export const parameterGroups = {
   Parameter2: "Control",
   Parameter3: "Control",
   Reserved: "Control",
+
+  "": "Other",
 };

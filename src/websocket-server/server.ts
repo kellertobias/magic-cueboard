@@ -126,7 +126,7 @@ export class WebSocketService {
     this.setupSPLMeterEvents();
 
     this.magicqOsc.start();
-    this.magicqProgrammer.start();
+    // Note: magicqProgrammer starts conditionally when clients request programmer data
     this.buttonController.start();
     this.mqttBroker.start();
 
@@ -255,12 +255,7 @@ export class WebSocketService {
         })
       );
 
-      ws.send(
-        JSON.stringify({
-          type: "programmer-update",
-          data: this.magicqProgrammer.getCurrentState(),
-        })
-      );
+      // Programmer data is sent only when explicitly requested
 
       // send show setup
       this.sendShowSetup();
@@ -330,7 +325,8 @@ export class WebSocketService {
           break;
 
         case "get-programmer":
-          await this.handleGetProgrammer(ws);
+          this.clientMessageTypes.set(ws, ["programmer-update"]);
+          this.magicqProgrammer.requestUpdate();
           break;
 
         case "system-command":
@@ -425,29 +421,6 @@ export class WebSocketService {
         JSON.stringify({
           type: "error",
           error: "Failed to set brightness",
-        })
-      );
-    }
-  }
-
-  /**
-   * Handles the get-programmer message
-   */
-  private async handleGetProgrammer(ws: WebSocket): Promise<void> {
-    try {
-      const programmerData = await this.magicqProgrammer.getCurrentState();
-      ws.send(
-        JSON.stringify({
-          type: "programmer-data",
-          data: programmerData,
-        })
-      );
-    } catch (error) {
-      console.error("Error getting programmer data:", error);
-      ws.send(
-        JSON.stringify({
-          type: "error",
-          error: "Failed to get programmer data",
         })
       );
     }
