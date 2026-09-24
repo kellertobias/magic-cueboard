@@ -42,8 +42,8 @@ function brightnessToPercentage(brightness: number): number {
   // find the value in the valueMap that is closest to the brightness
   // biome-ignore lint/suspicious/noExplicitAny: <explanation>
   const closest = Object.keys(valueMap).reduce((prev: any, curr: any) => {
-    return Math.abs(Number(curr) - brightness) <
-      Math.abs(Number(prev) - brightness)
+    return Math.abs(Number(valueMap[curr]) - brightness) <
+      Math.abs(Number(valueMap[prev]) - brightness)
       ? curr
       : prev;
   }, 0);
@@ -69,6 +69,8 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [ipAddress, setIpAddress] = useState<string | null>(null);
+  const [layoutMode, setLayoutMode] = useState<"legacy" | "new">("legacy");
+  const [surfaceSource, setSurfaceSource] = useState<"auto" | "self" | "windows" | "tosklight">("auto");
 
   const handleMessage = useCallback((message: WSMessage) => {
     switch (message.type) {
@@ -90,6 +92,12 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
         if (message.data?.active !== undefined) {
           setActivePercentage(brightnessToPercentage(message.data.active));
         }
+        break;
+      case "layout-values":
+        setLayoutMode(message.data.mode);
+        break;
+      case "source-values":
+        setSurfaceSource(message.data.source);
         break;
       case "system-command-response":
         setCommandOutput((prev) => ({
@@ -144,6 +152,8 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
   useEffect(() => {
     if (isOpen) {
       sendMessage({ type: "get-brightness" });
+      sendMessage({ type: "get-layout" });
+      sendMessage({ type: "get-source" });
     }
   }, [isOpen, sendMessage]);
 
@@ -216,6 +226,29 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
                 >
                   Button Brightness
                 </button>
+                <div className="grid grid-cols-2 gap-1" aria-label="Executor layout mode">
+                  {(["legacy", "new"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      className={clsx(btnBaseClasses, "text-xs", layoutMode === mode ? "border-white text-white" : "border-gray-700 text-gray-500")}
+                      onClick={() => sendMessage({ type: "set-layout", data: { mode } })}
+                    >
+                      {mode === "legacy" ? "Legacy" : "New"}
+                    </button>
+                  ))}
+                </div>
+                <select
+                  aria-label="Show data API"
+                  className="w-full rounded border border-gray-700 bg-gray-950 p-2 text-xs text-gray-200"
+                  value={surfaceSource}
+                  onChange={(event) => sendMessage({ type: "set-source", data: { source: event.target.value } })}
+                >
+                  <option value="auto">Automatic (MagicQ priority)</option>
+                  <option value="windows">MagicQ Remote API</option>
+                  <option value="tosklight">ToskLight API</option>
+                  <option value="self">Local MagicQ compatibility</option>
+                </select>
               </div>
             </div>
 

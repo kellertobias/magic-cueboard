@@ -11,6 +11,9 @@ import type { Server } from "net";
 export class MQTTBrokerService extends EventEmitter {
   private broker: Aedes;
   private server: Server | null = null;
+  private retryTimer: NodeJS.Timeout | null = null;
+  private retryMilliseconds = 1000;
+  private stopping = false;
 
   constructor(
     private config: {
@@ -63,8 +66,20 @@ export class MQTTBrokerService extends EventEmitter {
    * Starts the MQTT broker server
    */
   public start(): void {
+    if (this.server || this.retryTimer) return;
+    this.stopping = false;
+    this.listen();
+  }
+
+  public address(): { host: string; port: number } | null {
+    const address = this.server?.address();
+    return address && typeof address !== "string" ? { host: address.address, port: address.port } : null;
+  }
+
+  private listen(): void {
     this.server = createServer(this.broker);
     this.server.listen(this.config.port, this.config.host || "0.0.0.0", () => {
+      this.retryMilliseconds = 1000;
       console.log(
         `[MQTT] Broker started on ${this.config.host || "0.0.0.0"}:${
           this.config.port
@@ -74,8 +89,16 @@ export class MQTTBrokerService extends EventEmitter {
     });
 
     this.server.on("error", (error: Error) => {
-      console.error("[MQTT] Server error:", error);
-      this.emit("error", error);
+      console.warn("[MQTT] Broker unavailable; retrying:", error.message);
+      this.emit("warning", error);
+      const failedServer = this.server;
+      this.server = null;
+      try { failedServer?.close(); } catch { /* A failed listener may already be closed. */ }
+      if (!this.stopping && !this.retryTimer) {
+        const delay = this.retryMilliseconds;
+        this.retryMilliseconds = Math.min(10_000, this.retryMilliseconds * 2);
+        this.retryTimer = setTimeout(() => { this.retryTimer = null; this.listen(); }, delay);
+      }
     });
   }
 
@@ -83,9 +106,14 @@ export class MQTTBrokerService extends EventEmitter {
    * Stops the MQTT broker server
    */
   public async stop(): Promise<void> {
+    this.stopping = true;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
     return new Promise((resolve) => {
       if (this.server) {
-        this.server.close(() => {
+        const server = this.server;
+        this.server = null;
+        server.close(() => {
           console.log("[MQTT] Broker stopped");
           this.emit("stopped");
           resolve();
@@ -101,14 +129,14 @@ export class MQTTBrokerService extends EventEmitter {
    * @param topic The topic to publish to
    * @param message The message to publish
    */
-  public publish(topic: string, message: unknown): void {
+  public publish(topic: string, message: unknown, retain = false): void {
     const payload = JSON.stringify(message);
     const packet: PublishPacket = {
       cmd: "publish",
       topic,
       payload: Buffer.from(payload),
       qos: 0,
-      retain: false,
+      retain,
       dup: false,
     };
     this.broker.publish(packet, () => {

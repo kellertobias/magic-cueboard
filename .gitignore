@@ -44,6 +44,7 @@ yarn-error.log*
 next-env.d.ts
 
 src/websocket-server/brightness-settings.json
+src/websocket-server/layout-settings.json
 
 __pycache__/**/*
 .esphome/**/*

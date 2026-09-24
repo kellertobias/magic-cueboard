@@ -1,7 +1,6 @@
 import dotenv from "dotenv";
 import { WebSocketService } from "./server";
 import { join } from "node:path";
-import { readdirSync } from "node:fs";
 
 dotenv.config();
 
@@ -13,33 +12,21 @@ const MAGICQ_OSC_RECEIVE_PORT = Number(
   process.env.MAGICQ_OSC_RECEIVE_PORT || 8000
 );
 const MAGICQ_OSC_SEND_PORT = Number(process.env.MAGICQ_OSC_SEND_PORT || 9000);
-const BUTTON_CONTROLLER_PORT =
-  process.env.BUTTON_CONTROLLER_PORT ||
-  ((): string | null => {
-    const devices = readdirSync("/dev");
-    const usbDevices = devices
-      .filter(
-        (device: string) =>
-          device.startsWith("cu.usb") ||
-          device.startsWith("ttyUSB") ||
-          device.startsWith("ttyACM")
-      )
-      .map((device: string) => `/dev/${device}`);
-
-    if (usbDevices.length === 0) {
-      console.warn("No USB devices found in /dev/");
-      return null; // Fallback to default
-    }
-
-    const usedDevice = usbDevices[0];
-    const remainingDevices = usbDevices.slice(1, -1);
-    console.log(
-      `   Found USB devices:\n   - ${usedDevice} (selected)\n${remainingDevices
-        .map((x: string) => `    - ${x}`)
-        .join("\n")}`
-    );
-    return usedDevice;
-  })();
+const MAGICQ_SOURCE = process.env.SURFACE_SOURCE || process.env.MAGICQ_SOURCE || "auto";
+if (MAGICQ_SOURCE !== "auto" && MAGICQ_SOURCE !== "self" && MAGICQ_SOURCE !== "windows" && MAGICQ_SOURCE !== "tosklight") {
+  throw new Error("SURFACE_SOURCE must be auto, self, windows or tosklight");
+}
+const WINDOWS_MAGICQ_WS_URL = process.env.WINDOWS_MAGICQ_WS_URL || "ws://192.168.42.127:47872/magicq";
+const WINDOWS_MAGICQ_TOKEN = process.env.WINDOWS_MAGICQ_TOKEN || "tosklight-magicq-feed-v1";
+const TOSKLIGHT_API_URL = process.env.TOSKLIGHT_API_URL || "http://192.168.42.127:5000";
+const EXECUTOR_LAYOUT_RAW = process.env.EXECUTOR_LAYOUT || "legacy";
+if (EXECUTOR_LAYOUT_RAW !== "legacy" && EXECUTOR_LAYOUT_RAW !== "new" && EXECUTOR_LAYOUT_RAW !== "compact") throw new Error("EXECUTOR_LAYOUT must be legacy or new");
+const EXECUTOR_LAYOUT: "legacy" | "new" = EXECUTOR_LAYOUT_RAW === "compact" ? "new" : EXECUTOR_LAYOUT_RAW;
+const SPL_API_URL = process.env.SPL_API_URL || null;
+const SPL_API_INTERVAL_MS = Number(process.env.SPL_API_INTERVAL_MS || 250);
+// With no override the controller service continuously discovers USB serial
+// devices. This lets the display boot before the board is plugged in.
+const BUTTON_CONTROLLER_PORT = process.env.BUTTON_CONTROLLER_PORT || null;
 
 // Default brightness values
 const DEFAULT_INACTIVE_BRIGHTNESS = 25;
@@ -66,6 +53,15 @@ const wsService = new WebSocketService({
   wsPort: WS_PORT,
   mqttHost: MQTT_HOST,
   mqttPort: MQTT_PORT,
+  magicqSource: MAGICQ_SOURCE,
+  windowsMagicqUrl: WINDOWS_MAGICQ_WS_URL,
+  windowsMagicqToken: WINDOWS_MAGICQ_TOKEN,
+  toskLightApiUrl: TOSKLIGHT_API_URL,
+  layoutMode: EXECUTOR_LAYOUT,
+  layoutSettingsPath: join(__dirname, "layout-settings.json"),
+  sourceSettingsPath: join(__dirname, "source-settings.json"),
+  splApiUrl: SPL_API_URL,
+  splApiIntervalMilliseconds: SPL_API_INTERVAL_MS,
 });
 
 async function shutdown(signal: string) {

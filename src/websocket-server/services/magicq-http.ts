@@ -1,5 +1,6 @@
 import { JSDOM } from "jsdom";
 import { getExecutorNumber } from "./helpers";
+import { dotColorFromName } from "./dot-color";
 
 export interface MagicQData {
   showName: string | null;
@@ -8,9 +9,12 @@ export interface MagicQData {
     {
       number: number;
       name: string;
-      type: "toggle" | "flash" | "fader" | "other";
+      type: "toggle" | "flash" | "solo" | "fader" | "other";
       color: string | null;
+      defaultColor?: boolean;
       dotColor: string | null;
+      mode?: "CS" | "SO" | "FL";
+      region?: number;
     }
   >;
 }
@@ -19,7 +23,8 @@ export interface MagicQData {
  * Service for interacting with MagicQ's web interface
  */
 export class MagicQHttpService {
-  constructor(private baseUrl = "http://localhost:8080") {}
+  constructor(private baseUrl = "http://localhost:8080", private layoutMode: "legacy" | "new" = "legacy") {}
+  public setLayout(mode: "legacy" | "new"): void { this.layoutMode = mode; }
 
   /**
    * Fetches show name and executor data from MagicQ
@@ -97,7 +102,7 @@ export class MagicQHttpService {
       {
         number: number;
         name: string;
-        type: "toggle" | "flash" | "fader" | "other";
+        type: "toggle" | "flash" | "solo" | "fader" | "other";
         color: string | null;
         dotColor: string | null;
       }
@@ -125,9 +130,10 @@ export class MagicQHttpService {
         {
           number: number;
           name: string;
-          type: "toggle" | "flash" | "fader" | "other";
+          type: "toggle" | "flash" | "solo" | "fader" | "other";
           color: string | null;
           dotColor: string | null;
+          mode?: "CS" | "SO" | "FL";
         }
       > = {};
       const items = dom.window.document.querySelectorAll("input");
@@ -135,6 +141,11 @@ export class MagicQHttpService {
       for (const row of items) {
         const index = Number(row.name);
         const value = row.value;
+
+        if (this.layoutMode === "new") {
+          if (index >= 1 && index <= 42) executors[index] = { number: index, name: value, type: index > 40 ? "fader" : "toggle", color: null, dotColor: dotColorFromName(value), mode: "CS" };
+          continue;
+        }
 
         const execNumber = getExecutorNumber(index);
 
@@ -157,9 +168,15 @@ export class MagicQHttpService {
           switch (parts[1]?.toLowerCase()) {
             case "t":
               executors[execNumber].type = "toggle";
+              executors[execNumber].mode = "CS";
               break;
             case "f":
               executors[execNumber].type = "flash";
+              executors[execNumber].mode = "FL";
+              break;
+            case "s":
+              executors[execNumber].type = "solo";
+              executors[execNumber].mode = "SO";
               break;
             case "v":
               executors[execNumber].type = "fader";
@@ -172,6 +189,8 @@ export class MagicQHttpService {
       }
       console.log(" ---- EXECUTORS FROM MAGICQ HTTP ----");
       for (const executor of Object.values(executors)) {
+        executor.dotColor = dotColorFromName(executor.name);
+        executor.mode ||= executor.type === "flash" ? "FL" : "CS";
         console.log(`      ${executor.number}: ${executor.name}`);
       }
       return executors;

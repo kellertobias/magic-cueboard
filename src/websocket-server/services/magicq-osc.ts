@@ -18,7 +18,8 @@ export class MagicQOscService extends EventEmitter {
       receiveAddress: string;
       sendPort: number;
       sendAddress: string;
-    }
+    },
+    private layoutMode: "legacy" | "new" = "legacy"
   ) {
     super();
 
@@ -66,6 +67,7 @@ export class MagicQOscService extends EventEmitter {
       );
     });
   }
+  public setLayout(mode: "legacy" | "new"): void { this.layoutMode = mode; }
 
   /**
    * Starts the OSC receiver and feedback interval
@@ -122,7 +124,7 @@ export class MagicQOscService extends EventEmitter {
     exec: number,
     value: number
   ): Promise<number> {
-    const execNumber = makeExecutorNumber(exec);
+    const execNumber = this.layoutMode === "legacy" ? makeExecutorNumber(exec) : exec;
     try {
       // Validate value range
       const normalizedValue = Math.max(0, Math.min(1, value));

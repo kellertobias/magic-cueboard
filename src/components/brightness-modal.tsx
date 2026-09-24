@@ -42,7 +42,7 @@ export function BrightnessModal({
               htmlFor="inactive-brightness"
               className="text-sm text-gray-300"
             >
-              Inactive Brightness
+              Idle Brightness
             </label>
             <input
               id="inactive-brightness"

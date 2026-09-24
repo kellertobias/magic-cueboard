@@ -2,6 +2,16 @@ import { EventEmitter } from "node:events";
 import { SerialPort } from "serialport";
 import { ReadlineParser } from "@serialport/parser-readline";
 
+export function findControllerPort(ports: Array<{ path: string; pnpId?: string; vendorId?: string }>): string | null {
+  return ports.find((port) => {
+    if (/^(?:\/dev\/ttyACM|\/dev\/ttyUSB|\/dev\/cu\.usb)/i.test(port.path)) return true;
+    // A built-in Windows COM port is not a USB Cueboard. Opening it would
+    // falsely mark local hardware as connected and suppress the remote board.
+    return /^COM\d+$/i.test(port.path) &&
+      (Boolean(port.vendorId) || /^USB\\/i.test(port.pnpId || ""));
+  })?.path || null;
+}
+
 const controllerToServer = new Map<number, number>();
 const serverToController = new Map<number, number>();
 
@@ -78,6 +88,10 @@ export class ButtonControllerService extends EventEmitter {
   private buttonStates: Map<number, boolean> = new Map();
   private brightnessInactive = 25;
   private brightnessActive = 40;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private brightnessTimer: NodeJS.Timeout | null = null;
+  private stopping = true;
+  private readonly reconnectMilliseconds = 2000;
 
   constructor(private portPath: string | null) {
     super();
@@ -87,58 +101,95 @@ export class ButtonControllerService extends EventEmitter {
    * Starts the serial connection to the button controller
    */
   public start(): void {
-    if (this.port) {
-      console.warn("[Hardware] Button controller already connected");
+    if (!this.stopping) return;
+    this.stopping = false;
+    this.emit("connecting");
+    void this.connect();
+  }
+
+  private async connect(): Promise<void> {
+    if (this.stopping || this.port) return;
+    const path = this.portPath || (await this.findController());
+    if (!path) {
+      this.scheduleReconnect();
       return;
     }
 
-    if (!this.portPath) {
-      console.warn("[Hardware] No port path provided");
-      return;
-    }
+    const port = new SerialPort({ path, baudRate: 115200, autoOpen: false });
+    this.port = port;
+    this.parser = port.pipe(new ReadlineParser({ delimiter: "\n" }));
 
-    this.port = new SerialPort({
-      path: this.portPath,
-      baudRate: 115200,
-    });
-
-    this.parser = this.port.pipe(new ReadlineParser({ delimiter: "\n" }));
-
-    this.port.on("open", () => {
+    port.on("open", () => {
+      if (this.port !== port || this.stopping) return;
       console.log("[Hardware] Connected to button controller");
       this.isConnected = true;
       this.emit("connected");
       this.initializeDevice();
     });
 
-    this.port.on("error", (err: Error) => {
+    port.on("error", (err: Error) => {
       console.error("[Hardware] Button controller error:", err);
-      this.isConnected = false;
-      this.emit("disconnected");
+      this.handleDisconnect(port);
     });
 
-    this.port.on("close", () => {
+    port.on("close", () => {
       console.log("[Hardware] Button controller disconnected");
-      this.isConnected = false;
-      this.emit("disconnected");
+      this.handleDisconnect(port);
     });
 
     this.parser.on("data", (line: string) => {
       this.handleMessage(line);
     });
+    port.open((error) => { if (error) this.handleDisconnect(port); });
+  }
+
+  private async findController(): Promise<string | null> {
+    try {
+      const ports = await SerialPort.list();
+      return findControllerPort(ports);
+    } catch (error) {
+      console.warn("[Hardware] Cannot enumerate serial devices:", error);
+      return null;
+    }
+  }
+
+  private handleDisconnect(port: SerialPort): void {
+    if (this.port !== port) return;
+    const wasConnected = this.isConnected;
+    this.port = null;
+    this.parser = null;
+    this.isConnected = false;
+    if (wasConnected) this.emit("disconnected");
+    if (!this.stopping) {
+      this.emit("connecting");
+      this.scheduleReconnect();
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.stopping || this.reconnectTimer) return;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      void this.connect();
+    }, this.reconnectMilliseconds);
   }
 
   /**
    * Stops the serial connection
    */
   public stop(): void {
-    if (this.port) {
-      this.port.close();
-      this.port = null;
-      this.parser = null;
-      this.isConnected = false;
-      this.emit("disconnected");
-    }
+    this.stopping = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.brightnessTimer) clearTimeout(this.brightnessTimer);
+    this.reconnectTimer = null;
+    this.brightnessTimer = null;
+    const port = this.port;
+    const wasConnected = this.isConnected;
+    this.port = null;
+    this.parser = null;
+    this.isConnected = false;
+    if (port?.isOpen) port.close();
+    if (wasConnected) this.emit("disconnected");
   }
 
   /**
@@ -162,9 +213,9 @@ export class ButtonControllerService extends EventEmitter {
     // Send all button colors
     for (const [button, color] of this.buttonColors) {
       const internalButton = this.externalToInternalButton(button);
-      if (internalButton) {
+      if (internalButton !== null) {
         this.sendCommand(
-          `C${internalButton.toString().padStart(3, "0")}:${color}`
+          `C${internalButton.toString().padStart(3, "0")}:${cueboardWireColor(color)}`
         );
       }
     }
@@ -184,12 +235,12 @@ export class ButtonControllerService extends EventEmitter {
    * Sets the color for a button
    */
   public setButtonColor(button: number, color: string): void {
-    if (!this.isConnected) return;
     this.buttonColors.set(button, color);
+    if (!this.isConnected) return;
     const internalButton = this.externalToInternalButton(button);
-    if (internalButton) {
+    if (internalButton !== null) {
       this.sendCommand(
-        `C${internalButton.toString().padStart(3, "0")}:${color}`
+        `C${internalButton.toString().padStart(3, "0")}:${cueboardWireColor(color)}`
       );
     }
   }
@@ -198,10 +249,10 @@ export class ButtonControllerService extends EventEmitter {
    * Sets the active state for a button
    */
   public setButtonActive(button: number, active: boolean): void {
-    if (!this.isConnected) return;
     this.buttonStates.set(button, active);
+    if (!this.isConnected) return;
     const internalButton = this.externalToInternalButton(button);
-    if (internalButton) {
+    if (internalButton !== null) {
       this.sendCommand(
         `A${internalButton.toString().padStart(3, "0")}:${active ? "1" : "0"}`
       );
@@ -220,17 +271,20 @@ export class ButtonControllerService extends EventEmitter {
    * Rate limited to max 2 calls per second, will use most recent values
    */
   public setBrightness(inactive: number, active: number): void {
-    if (!this.isConnected) return;
-
+    this.brightnessInactive = inactive;
+    this.brightnessActive = active;
     const now = Date.now();
     this.pendingBrightness = { inactive, active };
+
+    if (!this.isConnected) return;
 
     if (now - this.lastBrightnessUpdate >= this.BRIGHTNESS_THROTTLE_MS) {
       // Enough time has passed, update immediately
       this.updateBrightness();
-    } else if (!this.pendingBrightness) {
+    } else if (!this.brightnessTimer) {
       // Schedule update for when throttle period ends
-      setTimeout(() => {
+      this.brightnessTimer = setTimeout(() => {
+        this.brightnessTimer = null;
         this.updateBrightness();
       }, this.BRIGHTNESS_THROTTLE_MS - (now - this.lastBrightnessUpdate));
     }
@@ -320,4 +374,7 @@ export class ButtonControllerService extends EventEmitter {
     }
     return result - 1;
   }
+}
+export function cueboardWireColor(color: string): string {
+  return `${color[2]}${color[1]}${color[0]}`;
 }

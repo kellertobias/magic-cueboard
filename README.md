@@ -40,6 +40,57 @@ You might want to run this on a raspberry PI and set it up so that it automatica
 - Each first line is the actual executor that will be controlled (contains the name of the executor)
 - Each second line contains the color of the button in the grid, the type (Flash/ Toggle) and the color of the icon (e.g. `AAA,T,FF0` for a gray toggle button with a yellow icon)
 
+### MagicQ data source
+
+The Raspberry Pi server keeps the original two MagicQ modes for compatibility:
+
+```bash
+# Legacy mode: this Raspberry Pi talks directly to MagicQ and owns the USB board.
+MAGICQ_SOURCE=self
+
+# Windows mode: the ToskLight Windows hardware bridge owns MagicQ and the USB board.
+MAGICQ_SOURCE=windows
+WINDOWS_MAGICQ_WS_URL=ws://192.168.42.127:47872/magicq
+WINDOWS_MAGICQ_TOKEN=tosklight-magicq-feed-v1
+```
+
+`self` remains the default for backwards compatibility. In `windows` mode the Pi keeps serving its local UI, SPL meter, and MQTT data, but executor names, colours, types, and live values come from Windows. The dot colour is inferred from whole colour words in the MagicQ executor name, including Red, Orange, Yellow, Green, Blue, Cyan, CTO, White, Amber, Magenta, Purple, Pink, and UV.
+
+The preferred deployment now uses a selectable surface source:
+
+```bash
+# Automatic mode (default): the Windows bridge selects MagicQ whenever it is
+# running, otherwise ToskLight, otherwise the waiting screen.
+SURFACE_SOURCE=auto
+
+# MagicQ on the Windows show computer. Buttons travel back over the same
+# authenticated WebSocket and Windows uses MagicQ Remote (CHWP), not OSC.
+SURFACE_SOURCE=windows
+WINDOWS_MAGICQ_WS_URL=ws://192.168.42.127:47872/surface
+WINDOWS_MAGICQ_TOKEN=tosklight-magicq-feed-v1
+
+# ToskLight on the Windows show computer. The Pi creates its own operator
+# session, reads the selected page/show metadata and sends page actions back.
+SURFACE_SOURCE=tosklight
+TOSKLIGHT_API_URL=http://192.168.42.127:5000
+```
+
+`MAGICQ_SOURCE=self|windows` remains accepted for existing installations. `SURFACE_SOURCE` takes precedence and supports `auto|self|windows|tosklight`. In automatic mode the Pi can boot before the Windows computer; both the Windows surface connection and the ToskLight API retry after boot, disconnects, and restarts. MagicQ always has priority.
+
+### External SPL meter API
+
+Set `SPL_API_URL` to a JSON endpoint to display a network SPL meter instead of the local `splread` binary. Native `{ "measured": 91.2, "freqMode": "dBA" }`, simple `{ "value": 91.2 }`, and Home Assistant `{ "state": "91.2", "attributes": { "unit_of_measurement": "dBA" } }` responses are accepted. `SPL_API_INTERVAL_MS` controls polling and defaults to 250 ms.
+
+Every reading is also published by the Pi's MQTT broker on port 1883. Existing consumers can continue using retained `spl/value` and `spl/mode`. New consumers should subscribe to retained `tosklight/spl` for the complete JSON measurement, or `tosklight/spl/value`, `tosklight/spl/unit`, `tosklight/spl/timestamp`, and `tosklight/spl/availability` for individual fields. Availability is `online` while readings are being published and changes to `offline` during a clean shutdown.
+
+The executor layout can be changed in the on-screen Settings panel and is persisted across restarts. `EXECUTOR_LAYOUT=legacy|new` selects the initial value on a new installation (`compact` remains accepted as an alias for `new`):
+
+- `legacy`: buttons use MagicQ rows 1, 3, 5, and 7; rows 2, 4, 6, and 8 contain each button's colour/type configuration; the two potentiometers use items 81 and 82.
+- `new`: buttons use every row and take their colour, Toggle/Flash/Solo type, region, active state, and fader metadata directly from Execute Page 1. The two potentiometers control the first two fader items on the page.
+In both layouts the live Remote grid supplies button text and active state. Legacy mode preserves the existing paired name/configuration rows; New mode gets colour, button type, region and fader properties directly from the selected API or MagicQ Remote metadata.
+
+The Cueboard hardware transport is automatic and independent of the selected data source. The Pi continuously looks for a local USB serial board and prefers it whenever it is available. If no local board is connected, it uses the authenticated Windows surface connection and keeps retrying both paths. Hot-plugging a local board switches the display to local control; unplugging it falls back to the Windows bridge. `BUTTON_CONTROLLER_PORT` can pin local discovery to one device, otherwise compatible `/dev/ttyUSB*`, `/dev/ttyACM*`, and `cu.usb*` devices are rediscovered every two seconds. The display shows a dedicated connection screen until either transport has a Cueboard available.
+
 ### Setup of the Hardware:
 
 - compile the arduino file (either the USB MIDI file or the USB Custom file)

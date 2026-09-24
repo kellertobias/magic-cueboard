@@ -8,9 +8,12 @@ import { btnBaseClasses } from "./button";
 export interface Executor {
   number: number;
   name: string;
-  type: "toggle" | "flash" | "fader" | "other";
+  type: "toggle" | "flash" | "solo" | "fader" | "other";
   color: string | null;
+  defaultColor?: boolean;
   dotColor: string | null;
+  mode?: "CS" | "SO" | "FL";
+  region?: number;
 }
 
 export type WSMessage =
@@ -30,6 +33,16 @@ export type WSMessage =
       };
     }
   | { type: "brightness-values"; data: { inactive: number; active: number } }
+  | { type: "layout-values"; data: { mode: "legacy" | "new" } }
+  | { type: "source-values"; data: { source: "auto" | "self" | "windows" | "tosklight"; activeSource: "idle" | "magicq" | "tosklight" } }
+  | {
+      type: "hardware-connection";
+      data: {
+        status: "connecting" | "connected";
+        transport: "local" | "remote" | null;
+        detail: string;
+      };
+    }
   | {
       type: "system-command-response";
       data: { command: string; output: string; isError: boolean };
@@ -55,10 +68,12 @@ function ExecutorButton({
   execNumber,
   executor,
   value,
+  sendMessage,
 }: {
   execNumber: number;
   executor: Executor;
   value: number;
+  sendMessage: (message: unknown) => void;
 }) {
   const isActive = value > 0;
 
@@ -80,15 +95,28 @@ function ExecutorButton({
     : "#111111";
 
   return (
-    <div
+    <button
+      type="button"
       className={clsx(btnBaseClasses, "pt-4")}
       style={{
         backgroundColor: isActive ? bgActive : bgDefault,
         borderColor: isActive ? borderActive : borderDefault,
       }}
+      disabled={!executor?.name}
+      onPointerDown={(event) => {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        if (executor?.type === "flash") sendMessage({ type: "exec", address: execNumber, value: 1, phase: "press" });
+      }}
+      onPointerUp={(event) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+        sendMessage({ type: "exec", address: execNumber, value: executor?.type === "flash" ? 0 : 1, phase: executor?.type === "flash" ? "release" : "click" });
+      }}
     >
       <div className="text-[0.6rem] text-gray-500 absolute top-0 left-1">
         {execNumber}
+      </div>
+      <div className="text-[0.6rem] text-gray-400 absolute top-0 right-1">
+        {executor?.mode || "CS"}
       </div>
       <div
         className={clsx(
@@ -106,7 +134,7 @@ function ExecutorButton({
           style={{ backgroundColor: `#${executor.dotColor}` }}
         />
       )}
-    </div>
+    </button>
   );
 }
 
@@ -171,6 +199,12 @@ export function ExecutorGrid({ openSettings }: { openSettings: () => void }) {
   const [active, setActive] = useState<Record<number, number>>({});
   const [executors, setExecutors] = useState<Record<number, Executor>>([]);
   const [showName, setShowName] = useState("<Unknown Show>");
+  const [activeSource, setActiveSource] = useState<"idle" | "magicq" | "tosklight">("idle");
+  const [hardware, setHardware] = useState<{
+    status: "connecting" | "connected";
+    transport: "local" | "remote" | null;
+    detail: string;
+  }>({ status: "connecting", transport: null, detail: "Looking for Cueboard hardware…" });
 
   const handleMessage = useCallback((message: WSMessage) => {
     switch (message.type) {
@@ -183,10 +217,37 @@ export function ExecutorGrid({ openSettings }: { openSettings: () => void }) {
           ...prev,
           [message.data.number]: message.data.value,
         }));
+        break;
+      case "hardware-connection":
+        setHardware(message.data);
+        break;
+      case "source-values":
+        setActiveSource(message.data.activeSource);
+        break;
     }
   }, []);
 
-  useWebSocket(handleMessage, []);
+  const { sendMessage } = useWebSocket(handleMessage, []);
+
+  if (hardware.status === "connecting") {
+    return (
+      <div className="h-full px-4 py-6 flex flex-col">
+        <div className="flex justify-end">
+          <button type="button" className={clsx(btnBaseClasses, "border-gray-600 text-gray-300")} onClick={openSettings}>
+            Open Settings
+          </button>
+        </div>
+        <div className="grow flex flex-col items-center justify-center text-center gap-4">
+          <div className="h-10 w-10 rounded-full border-4 border-gray-700 border-t-cyan-400 animate-spin" />
+          <div>
+            <div className="text-xl font-semibold text-white">Connecting Cueboard</div>
+            <div className="mt-2 text-sm text-gray-300">{hardware.detail}</div>
+            <div className="mt-1 text-xs text-gray-500">Retrying automatically — you can plug the board into either device.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 h-full px-4 py-6">
@@ -203,6 +264,12 @@ export function ExecutorGrid({ openSettings }: { openSettings: () => void }) {
           </button>
           <span className="text-gray-300 font-mono text-sm">
             Current Show: {showName}
+          </span>
+          <span className="rounded-full border border-gray-700 px-2 py-1 text-[0.65rem] uppercase tracking-wide text-gray-400">
+            {hardware.transport === "local" ? "Local Cueboard" : "Remote Cueboard"}
+          </span>
+          <span className={clsx("rounded-full border px-2 py-1 text-[0.65rem] uppercase tracking-wide", activeSource === "tosklight" ? "border-teal-700 text-teal-300" : activeSource === "magicq" ? "border-blue-700 text-blue-300" : "border-amber-800 text-amber-300")}>
+            {activeSource === "tosklight" ? "ToskLight mode" : activeSource === "magicq" ? "MagicQ mode" : "Waiting for application"}
           </span>
         </div>
         <div className="flex flex-row gap-4 items-center justify-end h-full pr-4">
@@ -235,6 +302,7 @@ export function ExecutorGrid({ openSettings }: { openSettings: () => void }) {
                   execNumber={execNumber}
                   executor={executor}
                   value={value}
+                  sendMessage={sendMessage}
                 />
               );
             })}
