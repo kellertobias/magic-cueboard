@@ -10,7 +10,7 @@ export interface WindowsMagicQExecutor {
   dotColor: string | null;
   value: number;
   active: boolean;
-  mode: "CS" | "SO" | "FL";
+  mode: "CS" | "SO" | "FL" | "FD" | null;
   region?: number;
 }
 

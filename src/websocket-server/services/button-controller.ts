@@ -2,13 +2,16 @@ import { EventEmitter } from "node:events";
 import { SerialPort } from "serialport";
 import { ReadlineParser } from "@serialport/parser-readline";
 
-export function findControllerPort(ports: Array<{ path: string; pnpId?: string; vendorId?: string }>): string | null {
+export function findControllerPort(ports: Array<{ path: string; pnpId?: string; vendorId?: string; productId?: string }>): string | null {
   return ports.find((port) => {
-    if (/^(?:\/dev\/ttyACM|\/dev\/ttyUSB|\/dev\/cu\.usb)/i.test(port.path)) return true;
-    // A built-in Windows COM port is not a USB Cueboard. Opening it would
-    // falsely mark local hardware as connected and suppress the remote board.
-    return /^COM\d+$/i.test(port.path) &&
-      (Boolean(port.vendorId) || /^USB\\/i.test(port.pnpId || ""));
+    const serialPath = /^(?:\/dev\/ttyACM|\/dev\/ttyUSB|\/dev\/cu\.usb|COM\d+$)/i.test(port.path);
+    if (!serialPath) return false;
+    // The Cueboard is a Leonardo (2341:8037). A generic serial match can
+    // claim a different USB device such as the Pi's SPL meter as a Cueboard.
+    const vendorId = port.vendorId?.replace(/^0x/i, "").toLowerCase();
+    const productId = port.productId?.replace(/^0x/i, "").toLowerCase();
+    const pnpId = port.pnpId?.toLowerCase() || "";
+    return (vendorId === "2341" && productId === "8037") || /vid_2341&pid_8037/.test(pnpId);
   })?.path || null;
 }
 

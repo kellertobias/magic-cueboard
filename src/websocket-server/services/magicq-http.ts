@@ -13,7 +13,7 @@ export interface MagicQData {
       color: string | null;
       defaultColor?: boolean;
       dotColor: string | null;
-      mode?: "CS" | "SO" | "FL";
+      mode?: "CS" | "SO" | "FL" | "FD";
       region?: number;
     }
   >;
@@ -133,7 +133,7 @@ export class MagicQHttpService {
           type: "toggle" | "flash" | "solo" | "fader" | "other";
           color: string | null;
           dotColor: string | null;
-          mode?: "CS" | "SO" | "FL";
+          mode?: "CS" | "SO" | "FL" | "FD";
         }
       > = {};
       const items = dom.window.document.querySelectorAll("input");
@@ -143,7 +143,7 @@ export class MagicQHttpService {
         const value = row.value;
 
         if (this.layoutMode === "new") {
-          if (index >= 1 && index <= 42) executors[index] = { number: index, name: value, type: index > 40 ? "fader" : "toggle", color: null, dotColor: dotColorFromName(value), mode: "CS" };
+          if (index >= 1 && index <= 42) executors[index] = { number: index, name: value, type: index > 40 ? "fader" : "toggle", color: null, dotColor: dotColorFromName(value), mode: index > 40 ? "FD" : "CS" };
           continue;
         }
 
@@ -180,6 +180,7 @@ export class MagicQHttpService {
               break;
             case "v":
               executors[execNumber].type = "fader";
+              executors[execNumber].mode = "FD";
               break;
             default:
               executors[execNumber].type = "other";
@@ -190,7 +191,7 @@ export class MagicQHttpService {
       console.log(" ---- EXECUTORS FROM MAGICQ HTTP ----");
       for (const executor of Object.values(executors)) {
         executor.dotColor = dotColorFromName(executor.name);
-        executor.mode ||= executor.type === "flash" ? "FL" : "CS";
+        executor.mode ||= executor.type === "flash" ? "FL" : executor.type === "fader" ? "FD" : "CS";
         console.log(`      ${executor.number}: ${executor.name}`);
       }
       return executors;

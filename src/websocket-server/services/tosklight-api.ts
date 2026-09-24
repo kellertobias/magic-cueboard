@@ -22,7 +22,7 @@ export function normalizeToskLightSurface(bootstrap: unknown, overview: unknown)
     // The external Cueboard is one button per slot and therefore drives the
     // first configured playback button, exactly like the Windows bridge.
     const flash = buttons[0] === "flash";
-    executors[number] = { number, name: String(playback.name ?? `Playback ${number}`), type: number > 40 || playback.has_fader === true ? (number > 40 ? "fader" : flash ? "flash" : "toggle") : flash ? "flash" : "toggle", color: hex(playback.color), dotColor: null, value: activeNumbers.has(playbackNumber) ? 1 : 0, active: activeNumbers.has(playbackNumber), mode: flash ? "FL" : "CS" };
+    executors[number] = { number, name: String(playback.name ?? `Playback ${number}`), type: number > 40 || playback.has_fader === true ? (number > 40 ? "fader" : flash ? "flash" : "toggle") : flash ? "flash" : "toggle", color: hex(playback.color), dotColor: null, value: activeNumbers.has(playbackNumber) ? 1 : 0, active: activeNumbers.has(playbackNumber), mode: number > 40 ? "FD" : flash ? "FL" : "CS" };
   }
   return { type: "surface-snapshot", schemaVersion: 2, source: "tosklight", connected: true, page: 1, showName: typeof activeShow.name === "string" ? activeShow.name : null, executors, layoutMode: "new" };
 }

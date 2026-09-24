@@ -12,7 +12,7 @@ export interface Executor {
   color: string | null;
   defaultColor?: boolean;
   dotColor: string | null;
-  mode?: "CS" | "SO" | "FL";
+  mode?: "CS" | "SO" | "FL" | "FD";
   region?: number;
 }
 
@@ -64,6 +64,13 @@ const darkenColor = (color: string, amount: number) => {
   });
 };
 
+function displayName(executor?: Executor): string {
+  return (executor?.name || "")
+    .split(" · ")
+    .filter((part) => !["CS", "SO", "FL", "FD"].includes(part.trim().toUpperCase()))
+    .join(" · ");
+}
+
 function ExecutorButton({
   execNumber,
   executor,
@@ -76,6 +83,7 @@ function ExecutorButton({
   sendMessage: (message: unknown) => void;
 }) {
   const isActive = value > 0;
+  const name = displayName(executor);
 
   const bgActive = executor?.color
     ? `#${darkenColor(executor.color, 0.5)}`
@@ -102,7 +110,7 @@ function ExecutorButton({
         backgroundColor: isActive ? bgActive : bgDefault,
         borderColor: isActive ? borderActive : borderDefault,
       }}
-      disabled={!executor?.name}
+      disabled={!name}
       onPointerDown={(event) => {
         event.currentTarget.setPointerCapture(event.pointerId);
         if (executor?.type === "flash") sendMessage({ type: "exec", address: execNumber, value: 1, phase: "press" });
@@ -116,17 +124,17 @@ function ExecutorButton({
         {execNumber}
       </div>
       <div className="text-[0.6rem] text-gray-400 absolute top-0 right-1">
-        {executor?.mode || "CS"}
+        {executor?.mode || (executor?.type === "fader" ? "FD" : "CS")}
       </div>
       <div
         className={clsx(
           "text-[0.6rem] absolute top-1 left-1 right-1 bottom-1 flex items-center justify-center",
-          { "text-white": executor?.name },
-          { "text-gray-800": !executor?.name }
+          { "text-white": name },
+          { "text-gray-800": !name }
         )}
         style={{ lineHeight: 1.1 }}
       >
-        {executor?.name || "<Empty>"}
+        {name || "<Empty>"}
       </div>
       {executor?.dotColor && (
         <div
@@ -147,15 +155,16 @@ function ExecutorPoti({
   executor: Executor;
   value: number;
 }) {
+  const name = displayName(executor);
   return (
     <div className={clsx("h-full relative flex flex-row gap-4 items-center")}>
       <div
         className={clsx("text-[0.6rem] font-semibold", {
-          "text-white": executor?.name,
-          "text-gray-500": !executor?.name,
+          "text-white": name,
+          "text-gray-500": !name,
         })}
       >
-        {executor?.name || `<Executor ${execNumber}>`}
+        {name || `<Executor ${execNumber}>`}
       </div>
       {/* Circular progress indicator with bottom opening */}
       <div className="relative w-8 h-8">
@@ -242,7 +251,7 @@ export function ExecutorGrid({ openSettings }: { openSettings: () => void }) {
           <div>
             <div className="text-xl font-semibold text-white">Connecting Cueboard</div>
             <div className="mt-2 text-sm text-gray-300">{hardware.detail}</div>
-            <div className="mt-1 text-xs text-gray-500">Retrying automatically — you can plug the board into either device.</div>
+            <div className="mt-1 text-xs text-gray-500">Retrying automatically — the Cueboard connects through the Windows bridge.</div>
           </div>
         </div>
       </div>

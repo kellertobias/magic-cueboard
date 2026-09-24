@@ -15,6 +15,12 @@ interface OptionsModalProps {
 // Default brightness values (in percentage)
 const DEFAULT_INACTIVE_BRIGHTNESS = 10;
 const DEFAULT_ACTIVE_BRIGHTNESS = 20;
+const sourceChoices = [
+  { value: "auto", label: "Automatic" },
+  { value: "windows", label: "MagicQ Remote API" },
+  { value: "tosklight", label: "ToskLight API" },
+  { value: "self", label: "Local MagicQ compatibility" },
+] as const;
 
 const valueMap: Record<string, string> = {};
 for (let i = 0; i < 32; i++) {
@@ -65,6 +71,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
     hasError: boolean;
   } | null>(null);
   const [isBrightnessModalOpen, setIsBrightnessModalOpen] = useState(false);
+  const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
   const [isTerminalModalOpen, setIsTerminalModalOpen] = useState(false);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -157,6 +164,10 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
     }
   }, [isOpen, sendMessage]);
 
+  useEffect(() => {
+    if (!isOpen) setIsSourceModalOpen(false);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
@@ -238,17 +249,14 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
                     </button>
                   ))}
                 </div>
-                <select
-                  aria-label="Show data API"
-                  className="w-full rounded border border-gray-700 bg-gray-950 p-2 text-xs text-gray-200"
-                  value={surfaceSource}
-                  onChange={(event) => sendMessage({ type: "set-source", data: { source: event.target.value } })}
+                <button
+                  type="button"
+                  aria-label="Choose show data source"
+                  className={clsx(btnBaseClasses, "border-gray-600 text-gray-300 w-full text-xs")}
+                  onClick={() => setIsSourceModalOpen(true)}
                 >
-                  <option value="auto">Automatic (MagicQ priority)</option>
-                  <option value="windows">MagicQ Remote API</option>
-                  <option value="tosklight">ToskLight API</option>
-                  <option value="self">Local MagicQ compatibility</option>
-                </select>
+                  Source: {sourceChoices.find((choice) => choice.value === surfaceSource)?.label}
+                </button>
               </div>
             </div>
 
@@ -295,6 +303,36 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
           </div>
         </div>
       </div>
+
+      {isSourceModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[60]">
+          <div className="bg-gray-900 p-4 rounded-lg shadow-xl w-[600px] max-w-[95vw] max-h-[300px]">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-lg font-semibold text-white">Show data source</h2>
+              <button type="button" onClick={() => setIsSourceModalOpen(false)} className="text-gray-300 hover:text-white px-3 py-1" aria-label="Back to settings">
+                Back ✕
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Show data source">
+              {sourceChoices.map((choice) => (
+                <button
+                  key={choice.value}
+                  type="button"
+                  aria-pressed={surfaceSource === choice.value}
+                  className={clsx(btnBaseClasses, "min-h-16 px-3 text-sm", surfaceSource === choice.value ? "border-cyan-400 text-white bg-gray-800" : "border-gray-600 text-gray-300")}
+                  onClick={() => {
+                    sendMessage({ type: "set-source", data: { source: choice.value } });
+                    setSurfaceSource(choice.value);
+                    setIsSourceModalOpen(false);
+                  }}
+                >
+                  {choice.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <TerminalModal
         isOpen={isTerminalModalOpen}

@@ -172,9 +172,9 @@ export class WebSocketService {
     this.splApi.on("warning", (error: Error) => console.warn("[SPL API]", error.message));
     this.mqttBroker.on("warning", (error: Error) => console.warn("[MQTT]", error.message));
 
-    // Hardware transport is automatic and independent of the executor-data
-    // source: prefer local serial, while keeping the remote bridge ready.
-    this.buttonController.start();
+    // The Windows bridge owns the Cueboard. Only open a local serial device
+    // when an operator explicitly configures its port.
+    if (buttonControllerPort) this.buttonController.start();
     this.windowsMagicq.start();
     if (this.magicqSource === "self") {
       this.magicqOsc.start();
@@ -341,7 +341,7 @@ export class WebSocketService {
           color: executor.color,
           defaultColor: executor.defaultColor,
           dotColor: executor.dotColor,
-          mode: executor.mode,
+          mode: executor.mode ?? undefined,
           region: executor.region,
         };
         this.state[number] = { type: executor.type, value: executor.value, region: executor.region };
@@ -360,7 +360,7 @@ export class WebSocketService {
     this.state = {};
     for (const [key, executor] of Object.entries(snapshot.executors)) {
       const number = Number(key);
-      executors[number] = { number, name: executor.name, type: executor.type, color: executor.color, defaultColor: executor.defaultColor, dotColor: executor.dotColor, mode: executor.mode, region: executor.region };
+      executors[number] = { number, name: executor.name, type: executor.type, color: executor.color, defaultColor: executor.defaultColor, dotColor: executor.dotColor, mode: executor.mode ?? undefined, region: executor.region };
       this.state[number] = { type: executor.type, value: executor.value, region: executor.region };
     }
     this.magicqData = { showName: snapshot.showName, executors };
@@ -1002,7 +1002,7 @@ export class WebSocketService {
     if (this.localHardwareConnected) return { type: "hardware-connection", data: { status: "connected", transport: "local", detail: "Cueboard connected directly to this display." } };
     if (this.remoteSurfaceConnected && this.remoteHardwareAvailable) return { type: "hardware-connection", data: { status: "connected", transport: "remote", detail: "Cueboard connected through the Windows hardware bridge." } };
     if (this.remoteSurfaceConnected) return { type: "hardware-connection", data: { status: "connecting", transport: null, detail: "Windows bridge connected. Waiting for Cueboard hardware…" } };
-    return { type: "hardware-connection", data: { status: "connecting", transport: null, detail: "Looking for a local Cueboard and connecting to the Windows bridge…" } };
+    return { type: "hardware-connection", data: { status: "connecting", transport: null, detail: "Connecting to the Windows Cueboard bridge…" } };
   }
 
   private broadcastHardwareConnection(): void {

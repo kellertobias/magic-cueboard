@@ -24,8 +24,7 @@ if (EXECUTOR_LAYOUT_RAW !== "legacy" && EXECUTOR_LAYOUT_RAW !== "new" && EXECUTO
 const EXECUTOR_LAYOUT: "legacy" | "new" = EXECUTOR_LAYOUT_RAW === "compact" ? "new" : EXECUTOR_LAYOUT_RAW;
 const SPL_API_URL = process.env.SPL_API_URL || null;
 const SPL_API_INTERVAL_MS = Number(process.env.SPL_API_INTERVAL_MS || 250);
-// With no override the controller service continuously discovers USB serial
-// devices. This lets the display boot before the board is plugged in.
+// Direct serial is opt-in; the Windows bridge owns the Cueboard by default.
 const BUTTON_CONTROLLER_PORT = process.env.BUTTON_CONTROLLER_PORT || null;
 
 // Default brightness values
