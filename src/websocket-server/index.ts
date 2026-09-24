@@ -16,7 +16,7 @@ const MAGICQ_SOURCE = process.env.SURFACE_SOURCE || process.env.MAGICQ_SOURCE ||
 if (MAGICQ_SOURCE !== "auto" && MAGICQ_SOURCE !== "self" && MAGICQ_SOURCE !== "windows" && MAGICQ_SOURCE !== "tosklight") {
   throw new Error("SURFACE_SOURCE must be auto, self, windows or tosklight");
 }
-const WINDOWS_MAGICQ_WS_URL = process.env.WINDOWS_MAGICQ_WS_URL || "ws://192.168.42.127:47872/magicq";
+const WINDOWS_MAGICQ_WS_URL = process.env.WINDOWS_MAGICQ_WS_URL || "ws://192.168.42.127:47872/surface";
 const WINDOWS_MAGICQ_TOKEN = process.env.WINDOWS_MAGICQ_TOKEN || "tosklight-magicq-feed-v1";
 const TOSKLIGHT_API_URL = process.env.TOSKLIGHT_API_URL || "http://192.168.42.127:5000";
 const EXECUTOR_LAYOUT_RAW = process.env.EXECUTOR_LAYOUT || "legacy";

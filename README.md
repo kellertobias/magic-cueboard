@@ -42,19 +42,20 @@ You might want to run this on a raspberry PI and set it up so that it automatica
 
 ### MagicQ data source
 
-The Raspberry Pi server keeps the original two MagicQ modes for compatibility:
+The Raspberry Pi server also accepts the original MagicQ source setting for compatibility:
 
 ```bash
-# Legacy mode: this Raspberry Pi talks directly to MagicQ and owns the USB board.
+# Local MagicQ compatibility: the Pi reads MagicQ directly. A directly attached
+# Cueboard is used only when BUTTON_CONTROLLER_PORT is explicitly configured.
 MAGICQ_SOURCE=self
 
 # Windows mode: the ToskLight Windows hardware bridge owns MagicQ and the USB board.
 MAGICQ_SOURCE=windows
-WINDOWS_MAGICQ_WS_URL=ws://192.168.42.127:47872/magicq
+WINDOWS_MAGICQ_WS_URL=ws://192.168.42.127:47872/surface
 WINDOWS_MAGICQ_TOKEN=tosklight-magicq-feed-v1
 ```
 
-`self` remains the default for backwards compatibility. In `windows` mode the Pi keeps serving its local UI, SPL meter, and MQTT data, but executor names, colours, types, and live values come from Windows. The dot colour is inferred from whole colour words in the MagicQ executor name, including Red, Orange, Yellow, Green, Blue, Cyan, CTO, White, Amber, Magenta, Purple, Pink, and UV.
+`auto` is the default. In `windows` mode the Pi keeps serving its local UI, SPL meter, and MQTT data, while executor names, colours, types, and live values come from Windows. The dot colour is inferred from whole colour words in the MagicQ executor name, including Red, Orange, Yellow, Green, Blue, Cyan, CTO, White, Amber, Magenta, Purple, Pink, and UV.
 
 The preferred deployment now uses a selectable surface source:
 
