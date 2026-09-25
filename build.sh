@@ -13,13 +13,9 @@ if [[ "$(git branch --show-current)" != main ]]; then
   exit 1
 fi
 
-remote_url='ssh://git@git.tokenet.de/tosklight/light-assistant.git'
-if [[ "$(git remote get-url origin)" != "$remote_url" ]]; then
-  git remote set-url origin "$remote_url"
-fi
-
-echo 'Pulling Magic Qboard changes'
-git pull --ff-only origin main
+remote_url='https://github.com/kellertobias/magic-cueboard.git'
+echo 'Pulling Magic Qboard changes from the public GitHub mirror'
+git -c credential.helper= -c core.askPass= -c credential.interactive=never pull --ff-only "$remote_url" main
 
 echo 'Installing locked dependencies'
 if [[ -x /home/keller/.nvm/nvm-exec ]]; then

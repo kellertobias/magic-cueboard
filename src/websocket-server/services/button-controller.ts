@@ -230,7 +230,7 @@ export class ButtonControllerService extends EventEmitter {
     // Send all button states
     for (const [button, state] of this.buttonStates) {
       const internalButton = this.externalToInternalButton(button);
-      if (internalButton) {
+      if (internalButton !== null) {
         this.sendCommand(
           `A${internalButton.toString().padStart(3, "0")}:${state ? "1" : "0"}`
         );
@@ -242,6 +242,7 @@ export class ButtonControllerService extends EventEmitter {
    * Sets the color for a button
    */
   public setButtonColor(button: number, color: string): void {
+    if (this.buttonColors.get(button) === color) return;
     this.buttonColors.set(button, color);
     if (!this.isConnected) return;
     const internalButton = this.externalToInternalButton(button);
@@ -256,6 +257,7 @@ export class ButtonControllerService extends EventEmitter {
    * Sets the active state for a button
    */
   public setButtonActive(button: number, active: boolean): void {
+    if (this.buttonStates.get(button) === active) return;
     this.buttonStates.set(button, active);
     if (!this.isConnected) return;
     const internalButton = this.externalToInternalButton(button);

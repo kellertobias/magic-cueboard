@@ -72,6 +72,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
   } | null>(null);
   const [isBrightnessModalOpen, setIsBrightnessModalOpen] = useState(false);
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
+  const [settingsPage, setSettingsPage] = useState<"device" | "controls" | "system">("controls");
   const [isTerminalModalOpen, setIsTerminalModalOpen] = useState(false);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -165,7 +166,10 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
   }, [isOpen, sendMessage]);
 
   useEffect(() => {
-    if (!isOpen) setIsSourceModalOpen(false);
+    if (!isOpen) {
+      setIsSourceModalOpen(false);
+      setSettingsPage("controls");
+    }
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -173,9 +177,9 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-gray-900 p-6 rounded-lg shadow-xl w-[600px] max-h-[280px] overflow-y-scroll">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-white">Settings</h2>
+        <div className="bg-gray-900 p-4 rounded-lg shadow-xl w-[600px] max-w-[calc(100vw-16px)] max-h-[calc(100vh-16px)] overflow-y-auto">
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-lg font-semibold text-white">Settings</h2>
             <button
               type="button"
               onClick={onClose}
@@ -185,9 +189,16 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
             </button>
           </div>
 
-          <div className="flex gap-4">
+          <div className="grid grid-cols-3 gap-2 mb-3" role="tablist" aria-label="Settings sections">
+            {([['device', 'Device'], ['controls', 'Controls'], ['system', 'System']] as const).map(([page, label]) => (
+              <button key={page} type="button" role="tab" aria-selected={settingsPage === page} onClick={() => setSettingsPage(page)} className={clsx(btnBaseClasses, "min-h-9 py-1", settingsPage === page ? "border-cyan-400 text-white" : "border-gray-700 text-gray-400")}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div>
             {/* Left column - Device Info */}
-            <div className="flex-1">
+            <div className={settingsPage === "device" ? "block" : "hidden"}>
               <h3 className="text-sm font-medium text-gray-400 mb-2">
                 Device Information
               </h3>
@@ -208,11 +219,11 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
             </div>
 
             {/* Middle column - MagicQ Controls */}
-            <div className="flex-1">
+            <div className={settingsPage === "controls" ? "block" : "hidden"}>
               <h3 className="text-sm font-medium text-gray-400 mb-2">
                 MagicQ Controls
               </h3>
-              <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   className={clsx(
@@ -261,11 +272,11 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
             </div>
 
             {/* Right column - System Controls */}
-            <div className="flex-1">
+            <div className={settingsPage === "system" ? "block" : "hidden"}>
               <h3 className="text-sm font-medium text-gray-400 mb-2">
                 System Controls
               </h3>
-              <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   className={clsx(

@@ -840,7 +840,6 @@ export class WebSocketService {
 
   // biome-ignore lint/suspicious/noExplicitAny: <explanation>
   private updateButtonColors(executors: Record<number, any>): void {
-    console.log("Updating button colors", executors);
     for (const [exec, data] of Object.entries(executors)) {
       const button = Number(exec) - 1;
       if (button >= 0 && button < 40) {
