@@ -9,6 +9,7 @@ import {
   MagicQProgrammerService,
 } from "./services/magicq-programmer";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { systemCommands } from "@/system-commands";
 import { WebSocketServer, WebSocket } from "ws";
 import { WindowsMagicQService, type WindowsMagicQSnapshot } from "./services/windows-magicq";
@@ -716,8 +717,12 @@ export class WebSocketService {
     try {
       const { command } = message;
       if (command in systemCommands) {
+        const updateScript = `/bin/bash '${resolve(__dirname, "../../build.sh").replaceAll("'", "'\\''")}'`;
+        const shellCommand = command === "update-software"
+          ? `if [ "$(id -un)" = keller ]; then ${updateScript}; else sudo -n -u keller ${updateScript}; fi`
+          : systemCommands[command as keyof typeof systemCommands];
         await this.commandExecutor.callCommand(
-          systemCommands[command as keyof typeof systemCommands]
+          shellCommand
         );
       } else {
         console.error("Unknown system command:", command);
