@@ -1019,10 +1019,19 @@ export class WebSocketService {
     if (!target) return;
     if (solo) {
       const region = target.region || 0;
+      const rowStart = Math.floor((number - 1) / 10) * 10 + 1;
+      const adjacent = new Set([number]);
+      if (!region) for (const direction of [-1, 1]) {
+        for (let peerNumber = number + direction; peerNumber >= rowStart && peerNumber < rowStart + 10; peerNumber += direction) {
+          const peer = this.state[peerNumber];
+          if (!peer || peer.type !== "solo" || (peer.region || 0) !== 0) break;
+          adjacent.add(peerNumber);
+        }
+      }
       for (const [key, peer] of Object.entries(this.state)) {
         const peerNumber = Number(key);
         if (peerNumber > 40 || peer.type !== "solo") continue;
-        const sameGroup = region ? peer.region === region : Math.floor((peerNumber - 1) / 10) === Math.floor((number - 1) / 10);
+        const sameGroup = region ? peer.region === region : adjacent.has(peerNumber);
         if (sameGroup) { peer.value = peerNumber === number ? 1 : 0; if (track) this.optimisticButtons.predict(peerNumber, peer.value > 0); this.buttonController.setButtonActive(peerNumber - 1, peer.value > 0); if (this.magicqSource !== "self") this.broadcast({ type: "val", data: { number: peerNumber, value: peer.value } }); }
       }
       return;

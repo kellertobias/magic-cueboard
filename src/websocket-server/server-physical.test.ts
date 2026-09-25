@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { WebSocketService } from "./server";
 import { OptimisticButtons } from "./services/optimistic-buttons";
 
-function physicalRuntime(source: "windows" | "tosklight", type: "flash" | "toggle") {
+function physicalRuntime(source: "windows" | "tosklight", type: "flash" | "toggle" | "solo") {
   const calls: Array<[string, number, number, string]> = [];
   const broadcasts: Array<{ type: string; data: { number: number; value: number } }> = [];
   const runtime = Object.create(WebSocketService.prototype) as Record<string, unknown>;
@@ -26,7 +26,7 @@ function physicalRuntime(source: "windows" | "tosklight", type: "flash" | "toggl
     executors: { 1: { number: 1, name: "Test", type, color: null, dotColor: null, value, active: value > 0, mode: type === "flash" ? "FL" : "CS" } },
   });
   const state = () => (runtime.state as Record<number, { value: number }>)[1]?.value;
-  return { calls, broadcasts, call, releaseHeld, snapshot, state };
+  return { calls, broadcasts, call, releaseHeld, snapshot, state, runtime };
 }
 
 describe("Pi Cueboard action routing", () => {
@@ -85,5 +85,41 @@ describe("Pi Cueboard action routing", () => {
     call(1, 0, "release");
     await snapshot(1);
     expect(state()).toBe(0);
+  });
+
+  it("previews only Solo peers in the same region through two quick presses and stale feedback", async () => {
+    const { calls, call, runtime } = physicalRuntime("windows", "solo");
+    runtime.state = {
+      1: { type: "solo", value: 1, region: 7 },
+      2: { type: "solo", value: 0, region: 7 },
+      3: { type: "solo", value: 1, region: 8 },
+      4: { type: "toggle", value: 1, region: 7 },
+      11: { type: "solo", value: 1, region: 7 },
+    };
+    const values = () => Object.fromEntries(Object.entries(runtime.state as Record<string, { value: number }>).map(([key, value]) => [key, value.value]));
+    call(2, 1, "press"); call(2, 0, "release");
+    expect(values()).toEqual({ 1: 0, 2: 1, 3: 1, 4: 1, 11: 0 });
+    // The console reports its older state after the first local decision.
+    for (const [number, value] of [[1, 1], [2, 0]] as const) {
+      const pending = runtime.optimisticButtons as OptimisticButtons;
+      expect(pending.value(number, value)).toBe(number === 2 ? 1 : 0);
+    }
+    call(1, 1, "press"); call(1, 0, "release");
+    expect(values()).toEqual({ 1: 1, 2: 0, 3: 1, 4: 1, 11: 0 });
+    expect(calls.map((entry) => [entry[1], entry[3]])).toEqual([[2, "click"], [1, "click"]]);
+  });
+
+  it("keeps separate adjacent Solo runs apart when no region is set", () => {
+    const { call, runtime } = physicalRuntime("windows", "solo");
+    runtime.state = {
+      1: { type: "solo", value: 1, region: 0 },
+      2: { type: "solo", value: 0, region: 0 },
+      3: { type: "toggle", value: 0, region: 0 },
+      4: { type: "solo", value: 1, region: 0 },
+      5: { type: "solo", value: 0, region: 0 },
+    };
+    call(2, 1, "press"); call(2, 0, "release");
+    const values = runtime.state as Record<number, { value: number }>;
+    expect([values[1].value, values[2].value, values[4].value, values[5].value]).toEqual([0, 1, 1, 0]);
   });
 });
