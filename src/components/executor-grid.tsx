@@ -238,26 +238,6 @@ export function ExecutorGrid({ openSettings }: { openSettings: () => void }) {
 
   const { sendMessage } = useWebSocket(handleMessage, []);
 
-  if (hardware.status === "connecting") {
-    return (
-      <div className="h-full px-4 py-6 flex flex-col">
-        <div className="flex justify-end">
-          <button type="button" className={clsx(btnBaseClasses, "border-gray-600 text-gray-300")} onClick={openSettings}>
-            Open Settings
-          </button>
-        </div>
-        <div className="grow flex flex-col items-center justify-center text-center gap-4">
-          <div className="h-10 w-10 rounded-full border-4 border-gray-700 border-t-cyan-400 animate-spin" />
-          <div>
-            <div className="text-xl font-semibold text-white">Connecting Cueboard</div>
-            <div className="mt-2 text-sm text-gray-300">{hardware.detail}</div>
-            <div className="mt-1 text-xs text-gray-500">Retrying automatically — the Cueboard connects through the Windows bridge.</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-4 h-full px-4 py-6">
       <div className="flex flex-row justify-between items-center h-[40px]">
@@ -274,8 +254,8 @@ export function ExecutorGrid({ openSettings }: { openSettings: () => void }) {
           <span className="text-gray-300 font-mono text-sm">
             Current Show: {showName}
           </span>
-          <span className="rounded-full border border-gray-700 px-2 py-1 text-[0.65rem] uppercase tracking-wide text-gray-400">
-            {hardware.transport === "local" ? "Local Cueboard" : "Remote Cueboard"}
+          <span className="rounded-full border border-gray-700 px-2 py-1 text-[0.65rem] uppercase tracking-wide text-gray-400" title={hardware.detail}>
+            {hardware.status === "connecting" ? "Cueboard reconnecting" : hardware.transport === "local" ? "Pi Cueboard" : "Windows Cueboard"}
           </span>
           <span className={clsx("rounded-full border px-2 py-1 text-[0.65rem] uppercase tracking-wide", activeSource === "tosklight" ? "border-teal-700 text-teal-300" : activeSource === "magicq" ? "border-blue-700 text-blue-300" : "border-amber-800 text-amber-300")}>
             {activeSource === "tosklight" ? "ToskLight mode" : activeSource === "magicq" ? "MagicQ mode" : "Waiting for application"}

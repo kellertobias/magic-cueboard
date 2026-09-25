@@ -45,8 +45,8 @@ You might want to run this on a raspberry PI and set it up so that it automatica
 The Raspberry Pi server also accepts the original MagicQ source setting for compatibility:
 
 ```bash
-# Local MagicQ compatibility: the Pi reads MagicQ directly. A directly attached
-# Cueboard is used only when BUTTON_CONTROLLER_PORT is explicitly configured.
+# Local MagicQ compatibility: the Pi reads MagicQ directly and discovers its
+# attached Cueboard by USB ID.
 MAGICQ_SOURCE=self
 
 # Windows mode: the ToskLight Windows hardware bridge owns MagicQ and the USB board.
@@ -70,10 +70,11 @@ SURFACE_SOURCE=windows
 WINDOWS_MAGICQ_WS_URL=ws://192.168.42.127:47872/surface
 WINDOWS_MAGICQ_TOKEN=tosklight-magicq-feed-v1
 
-# ToskLight on the Windows show computer. The Pi creates its own operator
-# session, reads the selected page/show metadata and sends page actions back.
+# ToskLight on the Windows show computer. The Pi reads page/show metadata
+# through its operator session and sends physical Cueboard actions to the bridge.
 SURFACE_SOURCE=tosklight
 TOSKLIGHT_API_URL=http://192.168.42.127:5000
+WINDOWS_MAGICQ_WS_URL=ws://192.168.42.127:47872/surface
 ```
 
 `MAGICQ_SOURCE=self|windows` remains accepted for existing installations. `SURFACE_SOURCE` takes precedence and supports `auto|self|windows|tosklight`. In automatic mode the Pi can boot before the Windows computer; both the Windows surface connection and the ToskLight API retry after boot, disconnects, and restarts. MagicQ always has priority.
@@ -90,7 +91,7 @@ The executor layout can be changed in the on-screen Settings panel and is persis
 - `new`: buttons use every row and take their colour, Toggle/Flash/Solo type, region, active state, and fader metadata directly from Execute Page 1. The two potentiometers control the first two fader items on the page.
 In both layouts the live Remote grid supplies button text and active state. Legacy mode preserves the existing paired name/configuration rows; New mode gets colour, button type, region and fader properties directly from the selected API or MagicQ Remote metadata.
 
-The Windows bridge owns the Cueboard hardware and the Pi UI receives its button and light state through the authenticated surface connection. The Pi does not open local serial devices by default, so an attached SPL meter or other USB device cannot be mistaken for a Cueboard. Set `BUTTON_CONTROLLER_PORT` only for an intentional direct Cueboard connection; the local controller also checks the Cueboard USB ID `2341:8037` during discovery. The display remains running and retries the bridge if the hardware is unplugged or Windows is offline.
+The Cueboard is attached to the Raspberry Pi. On Linux, Magic Qboard discovers only its Leonardo USB ID `2341:8037`, so the SPL meter or another serial device cannot be mistaken for the board. `BUTTON_CONTROLLER_PORT` can pin a known port if needed. On Windows, local serial discovery stays off unless a port is explicitly set. All physical Cueboard button and fader actions travel from the Pi through the authenticated Windows bridge, which routes them to MagicQ or ToskLight according to its current owner. MagicQ feed and ToskLight API snapshots provide live values and colours to drive the Pi board LEDs. The UI remains visible while the board or Windows reconnects.
 
 ### Setup of the Hardware:
 

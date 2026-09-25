@@ -2,6 +2,10 @@ import { EventEmitter } from "node:events";
 import { SerialPort } from "serialport";
 import { ReadlineParser } from "@serialport/parser-readline";
 
+export function shouldStartLocalCueboard(platform: NodeJS.Platform, configuredPort: string | null): boolean {
+  return platform === "linux" || Boolean(configuredPort);
+}
+
 export function findControllerPort(ports: Array<{ path: string; pnpId?: string; vendorId?: string; productId?: string }>): string | null {
   return ports.find((port) => {
     const serialPath = /^(?:\/dev\/ttyACM|\/dev\/ttyUSB|\/dev\/cu\.usb|COM\d+$)/i.test(port.path);

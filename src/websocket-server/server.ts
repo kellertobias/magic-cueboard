@@ -1,7 +1,7 @@
 import { ChildProcess } from "./services/child-process";
 import { type MagicQData, MagicQHttpService } from "./services/magicq-http";
 import { MagicQOscService } from "./services/magicq-osc";
-import { ButtonControllerService } from "./services/button-controller";
+import { ButtonControllerService, shouldStartLocalCueboard } from "./services/button-controller";
 import { CommandExecutorService } from "./services/command-executor";
 import { MQTTBrokerService } from "./services/mqtt-broker";
 import {
@@ -56,8 +56,11 @@ export class WebSocketService {
   private splApi: SPLApiService;
   private sourceSettingsPath: string;
   private localHardwareConnected = false;
+  private localControllerEnabled = false;
   private remoteSurfaceConnected = false;
   private remoteHardwareAvailable = false;
+  private heldPhysicalButtons = new Map<number, { source: "self" | "windows" | "tosklight"; type: "toggle" | "flash" | "solo" | "fader" | "other" }>();
+  private ignoredPhysicalReleases = new Set<number>();
 
   constructor({
     listenIp,
@@ -173,9 +176,10 @@ export class WebSocketService {
     this.splApi.on("warning", (error: Error) => console.warn("[SPL API]", error.message));
     this.mqttBroker.on("warning", (error: Error) => console.warn("[MQTT]", error.message));
 
-    // The Windows bridge owns the Cueboard. Only open a local serial device
-    // when an operator explicitly configures its port.
-    if (buttonControllerPort) this.buttonController.start();
+    // The Cueboard lives on the Pi. Linux discovers only the Leonardo USB ID;
+    // Windows leaves serial ownership to its hardware bridge by default.
+    this.localControllerEnabled = shouldStartLocalCueboard(process.platform, buttonControllerPort);
+    if (this.localControllerEnabled) this.buttonController.start();
     this.windowsMagicq.start();
     if (this.magicqSource === "self") {
       this.magicqOsc.start();
@@ -230,6 +234,7 @@ export class WebSocketService {
     });
 
     this.buttonController.on("disconnected", () => {
+      this.releaseHeldPhysicalButtons();
       this.localHardwareConnected = false;
       this.broadcastHardwareConnection();
     });
@@ -248,11 +253,23 @@ export class WebSocketService {
   }
 
   private handlePhysicalExecutor(number: number, value: number, phase: "press" | "release" | "level"): void {
+    if (number <= 40 && phase === "press") {
+      if (this.heldPhysicalButtons.has(number)) return;
+      this.ignoredPhysicalReleases.delete(number);
+      this.heldPhysicalButtons.set(number, { source: this.magicqSource, type: this.state[number]?.type || "toggle" });
+    }
+    const held = number <= 40 ? this.heldPhysicalButtons.get(number) : undefined;
+    if (number <= 40 && phase === "release") {
+      if (this.ignoredPhysicalReleases.delete(number)) return;
+      if (!held) return;
+      this.heldPhysicalButtons.delete(number);
+      if (held.source !== this.magicqSource) return;
+    }
     if (this.magicqSource === "self") {
       this.handleExecutorCommand(number, phase === "level" ? value * 255 : value);
       return;
     }
-    const type = this.state[number]?.type || (number > 40 ? "fader" : "toggle");
+    const type = held?.type || this.state[number]?.type || (number > 40 ? "fader" : "toggle");
     const effectivePhase = phase === "level" ? "level" : type === "flash" ? phase : phase === "release" ? "click" : null;
     if (!effectivePhase) return;
     const effectiveValue = effectivePhase === "click" ? 1 : value;
@@ -260,8 +277,18 @@ export class WebSocketService {
       if (type === "flash") this.previewLocalButton(number, phase === "press");
       else if (effectivePhase === "click") this.previewLocalButton(number, type === "solo" || !(this.state[number]?.value > 0), type === "solo");
     }
-    if (this.magicqSource === "windows") this.windowsMagicq.sendExecutor(number, effectiveValue, effectivePhase);
-    else void this.toskLightApi.sendExecutor(number, effectiveValue, effectivePhase);
+    this.windowsMagicq.sendExecutor(number, effectiveValue, effectivePhase);
+  }
+
+  private releaseHeldPhysicalButtons(): void {
+    for (const [number, held] of this.heldPhysicalButtons) {
+      this.ignoredPhysicalReleases.add(number);
+      if (held.type !== "flash") continue;
+      this.previewLocalButton(number, false);
+      if (held.source === "self") this.handleExecutorCommand(number, 0);
+      else this.windowsMagicq.sendExecutor(number, 0, "release");
+    }
+    this.heldPhysicalButtons.clear();
   }
 
   /**
@@ -389,6 +416,7 @@ export class WebSocketService {
 
   private async activateRuntimeSource(source: "self" | "windows" | "tosklight"): Promise<void> {
     if (source === this.magicqSource) return;
+    this.releaseHeldPhysicalButtons();
     const previous = this.magicqSource;
     if (previous === "self") {
       if (this.showLoadingInterval) clearInterval(this.showLoadingInterval);
@@ -1007,7 +1035,7 @@ export class WebSocketService {
     if (this.localHardwareConnected) return { type: "hardware-connection", data: { status: "connected", transport: "local", detail: "Cueboard connected directly to this display." } };
     if (this.remoteSurfaceConnected && this.remoteHardwareAvailable) return { type: "hardware-connection", data: { status: "connected", transport: "remote", detail: "Cueboard connected through the Windows hardware bridge." } };
     if (this.remoteSurfaceConnected) return { type: "hardware-connection", data: { status: "connecting", transport: null, detail: "Windows bridge connected. Waiting for Cueboard hardware…" } };
-    return { type: "hardware-connection", data: { status: "connecting", transport: null, detail: "Connecting to the Windows Cueboard bridge…" } };
+    return { type: "hardware-connection", data: { status: "connecting", transport: null, detail: this.localControllerEnabled ? "Looking for the Cueboard on this Pi and connecting to Windows…" : "Connecting to the Windows Cueboard bridge…" } };
   }
 
   private broadcastHardwareConnection(): void {
@@ -1057,6 +1085,7 @@ export class WebSocketService {
 
   public async stop(): Promise<void> {
     console.log("Shutting down WebSocket service...");
+    this.releaseHeldPhysicalButtons();
     this.splApi.stop();
     this.mqttBroker.publish("tosklight/spl/availability", "offline", true);
 

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { findControllerPort } from "./button-controller";
+import { findControllerPort, shouldStartLocalCueboard } from "./button-controller";
 
 describe("Cueboard serial discovery", () => {
+  it("opens Pi USB discovery while leaving Windows bridge ownership intact", () => {
+    expect(shouldStartLocalCueboard("linux", null)).toBe(true);
+    expect(shouldStartLocalCueboard("win32", null)).toBe(false);
+    expect(shouldStartLocalCueboard("win32", "COM3")).toBe(true);
+  });
   it("ignores built-in COM ports and selects a USB serial device", () => {
     expect(findControllerPort([
       { path: "COM1", pnpId: "ACPI\\PNP0501\\0" },
