@@ -15,6 +15,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { WindowsMagicQService, type WindowsMagicQSnapshot } from "./services/windows-magicq";
 import { SPLApiService, splPublications, type SPLMeasurement } from "./services/spl-source";
 import { ToskLightApiService } from "./services/tosklight-api";
+import { OptimisticButtons } from "./services/optimistic-buttons";
 
 export class WebSocketService {
   private wss: WebSocketServer;
@@ -61,6 +62,7 @@ export class WebSocketService {
   private remoteHardwareAvailable = false;
   private heldPhysicalButtons = new Map<number, { source: "self" | "windows" | "tosklight"; type: "toggle" | "flash" | "solo" | "fader" | "other" }>();
   private ignoredPhysicalReleases = new Set<number>();
+  private optimisticButtons = new OptimisticButtons();
 
   constructor({
     listenIp,
@@ -273,11 +275,11 @@ export class WebSocketService {
     const effectivePhase = phase === "level" ? "level" : type === "flash" ? phase : phase === "release" ? "click" : null;
     if (!effectivePhase) return;
     const effectiveValue = effectivePhase === "click" ? 1 : value;
+    if (!this.windowsMagicq.sendExecutor(number, effectiveValue, effectivePhase)) return;
     if (number <= 40) {
       if (type === "flash") this.previewLocalButton(number, phase === "press");
-      else if (effectivePhase === "click") this.previewLocalButton(number, type === "solo" || !(this.state[number]?.value > 0), type === "solo");
+      else if (effectivePhase === "click") this.previewLocalButton(number, type === "solo" || !(this.state[number]?.value > 0), type === "solo", true);
     }
-    this.windowsMagicq.sendExecutor(number, effectiveValue, effectivePhase);
   }
 
   private releaseHeldPhysicalButtons(): void {
@@ -325,7 +327,7 @@ export class WebSocketService {
   private setupWindowsMagicQEvents(): void {
     this.windowsMagicq.on("connection", (connected: boolean) => {
       this.remoteSurfaceConnected = connected;
-      if (!connected) this.remoteHardwareAvailable = false;
+      if (!connected) { this.remoteHardwareAvailable = false; this.optimisticButtons.clear(); }
       if (connected) {
         if (!this.localHardwareConnected) this.windowsMagicq.setBrightness(this.brightnessSettings.inactive, this.brightnessSettings.active);
         if (this.magicqSource === "windows") this.windowsMagicq.setLayout(this.layoutMode);
@@ -351,6 +353,7 @@ export class WebSocketService {
         if (snapshotSource === "tosklight") { await this.activateRuntimeSource("tosklight"); return; }
         if (snapshotSource === "idle") {
           await this.activateRuntimeSource("windows");
+          this.optimisticButtons.clear();
           this.magicqData = null; this.state = {}; await this.sendShowSetup();
           this.broadcast({ type: "magicq-connection", data: { connected: false, source: "idle" } });
           return;
@@ -359,6 +362,7 @@ export class WebSocketService {
       }
       if (this.magicqSource !== "windows") return;
       const executors: MagicQData["executors"] = {};
+      if (!snapshot.connected) this.optimisticButtons.clear();
       this.state = {};
       for (const [key, executor] of Object.entries(snapshot.executors)) {
         const number = Number(key);
@@ -372,7 +376,9 @@ export class WebSocketService {
           mode: executor.mode ?? undefined,
           region: executor.region,
         };
-        this.state[number] = { type: executor.type, value: executor.value, region: executor.region };
+        const heldFlash = executor.type === "flash" && this.heldPhysicalButtons.get(number)?.source === "windows";
+        const value = heldFlash ? 1 : executor.type === "flash" ? 0 : this.optimisticButtons.value(number, executor.value);
+        this.state[number] = { type: executor.type, value, region: executor.region };
       }
       this.magicqData = { showName: snapshot.showName, executors };
       this.syncLocalButtonHardware();
@@ -389,7 +395,7 @@ export class WebSocketService {
     for (const [key, executor] of Object.entries(snapshot.executors)) {
       const number = Number(key);
       executors[number] = { number, name: executor.name, type: executor.type, color: executor.color, defaultColor: executor.defaultColor, dotColor: executor.dotColor, mode: executor.mode ?? undefined, region: executor.region };
-      this.state[number] = { type: executor.type, value: executor.value, region: executor.region };
+      this.state[number] = { type: executor.type, value: this.optimisticButtons.value(number, executor.value), region: executor.region };
     }
     this.magicqData = { showName: snapshot.showName, executors };
     this.syncLocalButtonHardware();
@@ -417,6 +423,7 @@ export class WebSocketService {
   private async activateRuntimeSource(source: "self" | "windows" | "tosklight"): Promise<void> {
     if (source === this.magicqSource) return;
     this.releaseHeldPhysicalButtons();
+    this.optimisticButtons.clear();
     const previous = this.magicqSource;
     if (previous === "self") {
       if (this.showLoadingInterval) clearInterval(this.showLoadingInterval);
@@ -1007,7 +1014,7 @@ export class WebSocketService {
     }
   }
 
-  private previewLocalButton(number: number, active: boolean, solo = false): void {
+  private previewLocalButton(number: number, active: boolean, solo = false, track = false): void {
     const target = this.state[number];
     if (!target) return;
     if (solo) {
@@ -1016,12 +1023,14 @@ export class WebSocketService {
         const peerNumber = Number(key);
         if (peerNumber > 40 || peer.type !== "solo") continue;
         const sameGroup = region ? peer.region === region : Math.floor((peerNumber - 1) / 10) === Math.floor((number - 1) / 10);
-        if (sameGroup) { peer.value = peerNumber === number ? 1 : 0; this.buttonController.setButtonActive(peerNumber - 1, peer.value > 0); }
+        if (sameGroup) { peer.value = peerNumber === number ? 1 : 0; if (track) this.optimisticButtons.predict(peerNumber, peer.value > 0); this.buttonController.setButtonActive(peerNumber - 1, peer.value > 0); if (this.magicqSource !== "self") this.broadcast({ type: "val", data: { number: peerNumber, value: peer.value } }); }
       }
       return;
     }
     target.value = active ? 1 : 0;
+    if (track) this.optimisticButtons.predict(number, active);
     this.buttonController.setButtonActive(number - 1, active);
+    if (this.magicqSource !== "self") this.broadcast({ type: "val", data: { number, value: target.value } });
   }
 
   private syncLocalButtonHardware(): void {
