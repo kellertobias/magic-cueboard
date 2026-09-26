@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
 const piPresets = ["You are too loud", "You are too quiet"];
@@ -11,6 +11,7 @@ export function DJMessages({ open, onClose }: { open: boolean; onClose: () => vo
   const [shift, setShift] = useState(true);
   const [error, setError] = useState("");
   const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
+  const messageInput = useRef<HTMLTextAreaElement>(null);
   const handleMessage = useCallback((event: { type: string; data: any }) => {
     if (event.type === "dj-message") setToast({ id: Date.now(), message: event.data.message });
     if (event.type === "pi-message-error") setError(event.data.message);
@@ -24,10 +25,25 @@ export function DJMessages({ open, onClose }: { open: boolean; onClose: () => vo
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const insert = (character: string) => {
-    setDraft(value => (value + character).slice(0, 160));
-    if (shift) setShift(false);
+  useEffect(() => {
+    if (open) messageInput.current?.focus();
+  }, [open]);
+
+  const editDraft = (character: string, erase = false) => {
+    const input = messageInput.current;
+    const start = input?.selectionStart ?? draft.length;
+    const end = input?.selectionEnd ?? start;
+    const from = erase && start === end ? Math.max(0, start - 1) : start;
+    const next = (draft.slice(0, from) + character + draft.slice(end)).slice(0, 160);
+    const caret = Math.min(from + character.length, next.length);
+    setDraft(next);
+    requestAnimationFrame(() => {
+      input?.focus();
+      input?.setSelectionRange(caret, caret);
+    });
   };
+  const insert = (character: string) => { editDraft(character); if (shift) setShift(false); };
+  const keyboardPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => event.preventDefault();
   const send = (text: string) => {
     if (status !== "connected") { setError("Qboard is disconnected."); return; }
     if (!text.trim()) return;
@@ -44,22 +60,25 @@ export function DJMessages({ open, onClose }: { open: boolean; onClose: () => vo
       <div className="grid min-h-0 flex-1 grid-cols-[2fr_1fr] gap-5">
         <div className="flex min-h-0 flex-col gap-2">
           <div className="flex gap-2">
-            <textarea aria-label="Custom message" maxLength={160} value={draft} onChange={event => setDraft(event.target.value)} placeholder="Type a custom message…"
-              className="h-14 flex-1 resize-none rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-base text-white outline-none focus:border-blue-400" />
+            <textarea ref={messageInput} aria-label="Custom message" maxLength={160} value={draft} onChange={event => setDraft(event.target.value)} placeholder="Type a custom message…"
+              className="h-14 flex-1 resize-none rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-base text-white caret-blue-300 outline-none focus:border-blue-400" />
             <button type="button" onClick={() => send(draft)} disabled={!draft.trim() || status !== "connected"}
               className="rounded-lg bg-blue-600 px-5 font-semibold disabled:bg-gray-700 disabled:text-gray-400">Send</button>
           </div>
-          <div className="flex flex-col gap-1.5" aria-label="On-screen keyboard">
-            {keyboardRows.map(row => <div key={row} className="flex justify-center gap-1.5">
-              {Array.from(row).map(letter => <button key={letter} type="button" onClick={() => insert(shift ? letter : letter.toLowerCase())}
+          <div className="flex w-full max-w-[700px] flex-col gap-1.5" aria-label="On-screen keyboard">
+            {keyboardRows.map((row, rowIndex) => <div key={row} className="flex justify-center gap-1.5">
+              {rowIndex === 2 && <button type="button" onPointerDown={keyboardPointerDown} onClick={() => { setShift(value => !value); messageInput.current?.focus(); }} className="h-9 min-w-0 flex-[1.5] rounded border border-gray-600 bg-gray-800 text-xs">Shift</button>}
+              {Array.from(row).map(letter => <button key={letter} type="button" onPointerDown={keyboardPointerDown} onClick={() => insert(shift ? letter : letter.toLowerCase())}
                 className="h-9 min-w-0 flex-1 rounded border border-gray-600 bg-gray-800 text-sm font-semibold active:bg-blue-700">{shift ? letter : letter.toLowerCase()}</button>)}
+              {rowIndex === 0 && <button type="button" onPointerDown={keyboardPointerDown} onClick={() => editDraft("", true)} className="h-9 min-w-0 flex-[1.8] rounded border border-gray-600 bg-gray-800 text-xs">⌫</button>}
+              {rowIndex === 2 && <><button type="button" onPointerDown={keyboardPointerDown} onClick={() => insert("?")} className="h-9 min-w-0 flex-1 rounded border border-gray-600 bg-gray-800">?</button><button type="button" onPointerDown={keyboardPointerDown} onClick={() => insert("!")} className="h-9 min-w-0 flex-1 rounded border border-gray-600 bg-gray-800">!</button></>}
             </div>)}
             <div className="flex gap-1.5">
-              <button type="button" onClick={() => setShift(value => !value)} className="h-9 w-20 rounded border border-gray-600 bg-gray-800 text-xs">Shift</button>
-              <button type="button" onClick={() => insert(",")} className="h-9 w-12 rounded border border-gray-600 bg-gray-800">,</button>
-              <button type="button" onClick={() => insert(" ")} className="h-9 flex-1 rounded border border-gray-600 bg-gray-800 text-xs">Space</button>
-              <button type="button" onClick={() => insert(".")} className="h-9 w-12 rounded border border-gray-600 bg-gray-800">.</button>
-              <button type="button" onClick={() => setDraft(value => value.slice(0, -1))} className="h-9 w-24 rounded border border-gray-600 bg-gray-800 text-xs">Backspace</button>
+              <button type="button" onPointerDown={keyboardPointerDown} onClick={() => insert("-")} className="h-9 min-w-0 flex-1 rounded border border-gray-600 bg-gray-800">−</button>
+              <button type="button" onPointerDown={keyboardPointerDown} onClick={() => insert("+")} className="h-9 min-w-0 flex-1 rounded border border-gray-600 bg-gray-800">+</button>
+              <button type="button" onPointerDown={keyboardPointerDown} onClick={() => insert(",")} className="h-9 min-w-0 flex-1 rounded border border-gray-600 bg-gray-800">,</button>
+              <button type="button" onPointerDown={keyboardPointerDown} onClick={() => insert(" ")} className="h-9 min-w-0 flex-[5] rounded border border-gray-600 bg-gray-800 text-xs">Space</button>
+              <button type="button" onPointerDown={keyboardPointerDown} onClick={() => insert(".")} className="h-9 min-w-0 flex-1 rounded border border-gray-600 bg-gray-800">.</button>
             </div>
           </div>
           {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
