@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import { useCallback, useMemo } from "react";
+import type { SPLColor, SPLThresholds } from "@/lib/spl-settings";
 
 interface SPLGraphProps {
   data: number[];
@@ -9,6 +10,7 @@ interface SPLGraphProps {
   minValue?: number;
   maxValue?: number;
   className?: string;
+  thresholds?: SPLThresholds;
 }
 
 const scaleValue = (
@@ -41,10 +43,8 @@ const makeScalePoint = (props: {
 };
 
 // Get color based on dBA value
-export const getColor = (value: number) => {
-  if (value < 80) return "text-green-500";
-  if (value < 93) return "text-yellow-500";
-  return "text-red-500";
+export const getColor = (color: SPLColor) => {
+  return { blue: "text-blue-400", green: "text-green-500", yellow: "text-yellow-400", red: "text-red-500", "red-blink": "text-red-500 animate-pulse" }[color];
 };
 
 export function SPLBar({
@@ -52,11 +52,13 @@ export function SPLBar({
   minValue = 55,
   maxValue = 110,
   className = "",
+  color = "blue",
 }: {
   value: number;
   minValue?: number;
   maxValue?: number;
   className?: string;
+  color?: SPLColor;
 }) {
   const svgWidth = 200;
   const svgHeight = 100;
@@ -70,7 +72,7 @@ export function SPLBar({
       aria-label="SPL Bar"
       viewBox={`0 0 ${svgWidth} ${svgHeight}`}
       preserveAspectRatio="none"
-      className={clsx("w-full h-full rounded-lg", className, getColor(value))}
+      className={clsx("w-full h-full rounded-lg", className, getColor(color))}
     >
       <rect
         y="0"
@@ -89,6 +91,7 @@ export function SPLGraph({
   minValue = 55,
   maxValue = 130,
   className = "",
+  thresholds = { green: 70, yellow: 80, red: 93 },
 }: SPLGraphProps) {
   const svgWidth = 200;
   const svgHeight = 100;
@@ -104,18 +107,18 @@ export function SPLGraph({
       return scaleValue(value, minValue, maxValue, 1);
     };
     return [
-      { offset: getStop(103), stopColor: "#FF0000" },
-      { offset: getStop(96), stopColor: "#FF0000" },
-      { offset: getStop(85), stopColor: "#FFFF00" },
-      { offset: getStop(70), stopColor: "#00FF00" },
-      { offset: getStop(0), stopColor: "#003300" },
+      { offset: getStop(maxValue), stopColor: "#EF4444" },
+      { offset: getStop(thresholds.red), stopColor: "#EF4444" },
+      { offset: getStop(thresholds.yellow), stopColor: "#FACC15" },
+      { offset: getStop(thresholds.green), stopColor: "#22C55E" },
+      { offset: getStop(minValue), stopColor: "#60A5FA" },
     ];
-  }, [minValue, maxValue]);
+  }, [minValue, maxValue, thresholds.green, thresholds.yellow, thresholds.red]);
 
   // Calculate points for the graph
   const points = data.map((value, index) => scalePoint(value, index)).join(" ");
-  const startPoint = scalePoint(data[0], -2);
-  const endPoint = scalePoint(data[data.length - 1], data.length + 2);
+  const startPoint = scalePoint(data[0] ?? minValue, -2);
+  const endPoint = scalePoint(data[data.length - 1] ?? minValue, data.length + 2);
 
   return (
     <svg

@@ -22,38 +22,6 @@ logger:
     lvgl: DEBUG
     display: DEBUG
 
-# Add number components for thresholds
-number:
-  - platform: template
-    name: "Threshold 1 Low"
-    id: threshold_low
-    min_value: 50
-    max_value: 80
-    step: 1
-    initial_value: 80
-    restore_value: true
-    optimistic: true
-
-  - platform: template
-    name: "Threshold 2 Medium"
-    id: threshold_medium
-    min_value: 60
-    max_value: 100
-    step: 1
-    initial_value: 90
-    restore_value: true
-    optimistic: true
-
-  - platform: template
-    name: "Threshold 3 High"
-    id: threshold_high
-    min_value: 70
-    max_value: 110
-    step: 1
-    initial_value: 96
-    restore_value: true
-    optimistic: true
-
 esp32:
   board: esp32-s3-devkitc-1
   variant: esp32s3
@@ -84,6 +52,7 @@ wifi:
 # MQTT Client Configuration
 mqtt:
   broker: !secret mqtt_broker
+  client_id: dj-spl-meter
   discovery: false # Disable Home Assistant MQTT discovery
   on_connect:
     then:
@@ -92,26 +61,105 @@ mqtt:
     then:
       - logger.log: "MQTT Disconnected"
 
-  # Subscribe to SPL value topic
+  # The Qboard owns SPL calculation and thresholds. Its topics are retained.
   on_message:
     - topic: "spl/value"
       then:
-        - sensor.template.publish:
-            id: spl_peak
-            state: !lambda return atof(x.c_str());
-        - sensor.template.publish:
-            id: spl_average
-            state: !lambda return atof(x.c_str());
         - lvgl.label.update:
             id: current_spl_label
             text: !lambda |-
               static char buf[32];
               snprintf(buf, 32, "%.1f dBA", atof(x.c_str()));
               return buf;
+
+    - topic: "tosklight/spl/level"
+      then:
+        - sensor.template.publish:
+            id: spl_average
+            state: !lambda return atof(x.c_str());
+
+    - topic: "tosklight/spl/peak"
+      then:
+        - sensor.template.publish:
+            id: spl_peak
+            state: !lambda return atof(x.c_str());
         - lvgl.bar.update:
             id: spl_bar
-            value: !lambda |-
-              return min(max((float) atof(x.c_str()), 0.0f), 110.0f);
+            value: !lambda return min(max((float) atof(x.c_str()), 0.0f), 110.0f);
+
+    - topic: "tosklight/spl/color"
+      then:
+        - lambda: |-
+            id(spl_color) = x;
+            if (id(spl_color).length() >= 2 && id(spl_color)[0] == '"')
+              id(spl_color) = id(spl_color).substr(1, id(spl_color).length() - 2);
+        - script.execute: apply_spl_color
+
+    - topic: "tosklight/dj/display-inbox"
+      then:
+        - lambda: |-
+            id(dj_incoming_message) = x.substr(0, 500);
+            id(dj_message_pending) = true;
+            id(spl_blink_on) = true;
+        - lvgl.label.update:
+            id: incoming_message_label
+            text: !lambda return id(dj_incoming_message).c_str();
+        - lvgl.page.show: main_page
+        - lvgl.widget.show: incoming_message_prompt
+        - script.execute: apply_spl_color
+
+    - topic: "tosklight/dj/message-topic"
+      then:
+        - lambda: |-
+            id(dj_message_topic) = x;
+    - topic: "tosklight/dj/preset/1"
+      then:
+        - lambda: |-
+            id(dj_message_1) = x;
+        - lvgl.label.update:
+            id: message_label_1
+            text: !lambda |-
+              return id(dj_message_1).empty() ? "—" : id(dj_message_1).c_str();
+    - topic: "tosklight/dj/preset/2"
+      then:
+        - lambda: |-
+            id(dj_message_2) = x;
+        - lvgl.label.update:
+            id: message_label_2
+            text: !lambda |-
+              return id(dj_message_2).empty() ? "—" : id(dj_message_2).c_str();
+    - topic: "tosklight/dj/preset/3"
+      then:
+        - lambda: |-
+            id(dj_message_3) = x;
+        - lvgl.label.update:
+            id: message_label_3
+            text: !lambda |-
+              return id(dj_message_3).empty() ? "—" : id(dj_message_3).c_str();
+    - topic: "tosklight/dj/preset/4"
+      then:
+        - lambda: |-
+            id(dj_message_4) = x;
+        - lvgl.label.update:
+            id: message_label_4
+            text: !lambda |-
+              return id(dj_message_4).empty() ? "—" : id(dj_message_4).c_str();
+    - topic: "tosklight/dj/preset/5"
+      then:
+        - lambda: |-
+            id(dj_message_5) = x;
+        - lvgl.label.update:
+            id: message_label_5
+            text: !lambda |-
+              return id(dj_message_5).empty() ? "—" : id(dj_message_5).c_str();
+    - topic: "tosklight/dj/preset/6"
+      then:
+        - lambda: |-
+            id(dj_message_6) = x;
+        - lvgl.label.update:
+            id: message_label_6
+            text: !lambda |-
+              return id(dj_message_6).empty() ? "—" : id(dj_message_6).c_str();
 
     - topic: "time"
       then:
@@ -131,6 +179,149 @@ web_server:
   port: 80
 
 captive_portal:
+
+globals:
+  - id: spl_color
+    type: std::string
+    initial_value: '"blue"'
+  - id: spl_blink_on
+    type: bool
+    initial_value: 'true'
+  - id: dj_message_pending
+    type: bool
+    initial_value: 'false'
+  - id: dj_incoming_message
+    type: std::string
+    initial_value: '""'
+  - id: dj_message_topic
+    type: std::string
+    initial_value: '"tosklight/dj/message"'
+  - id: dj_message_1
+    type: std::string
+    initial_value: '"Audio problem"'
+  - id: dj_message_2
+    type: std::string
+    initial_value: '"Light problem"'
+  - id: dj_message_3
+    type: std::string
+    initial_value: '"Yes"'
+  - id: dj_message_4
+    type: std::string
+    initial_value: '"No"'
+  - id: dj_message_5
+    type: std::string
+    initial_value: '""'
+  - id: dj_message_6
+    type: std::string
+    initial_value: '""'
+
+interval:
+  - interval: 500ms
+    then:
+      - if:
+          condition:
+            lambda: return id(spl_color) == "red-blink" || id(dj_message_pending);
+          then:
+            - lambda: id(spl_blink_on) = !id(spl_blink_on);
+            - script.execute: apply_spl_color
+
+script:
+  - id: apply_spl_color
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: return id(spl_color) == "red" || (id(spl_color) == "red-blink" && id(spl_blink_on));
+          then:
+            - lvgl.update:
+                disp_bg_color: 0x990000
+            - lvgl.label.update:
+                id: spl_value_label
+                text_color: 0xFF5555
+            - lvgl.label.update:
+                id: peak_spl_label
+                text_color: 0xFF5555
+            - lvgl.label.update:
+                id: current_spl_label
+                text_color: 0xFF5555
+            - lvgl.label.update:
+                id: status_label
+                text: "Volume Critical"
+          else:
+            - if:
+                condition:
+                  lambda: return id(spl_color) == "red-blink";
+                then:
+                  - lvgl.update:
+                      disp_bg_color: 0x110000
+                  - lvgl.label.update:
+                      id: spl_value_label
+                      text_color: 0x550000
+                  - lvgl.label.update:
+                      id: peak_spl_label
+                      text_color: 0x550000
+                  - lvgl.label.update:
+                      id: current_spl_label
+                      text_color: 0x550000
+                else:
+                  - if:
+                      condition:
+                        lambda: return id(spl_color) == "yellow";
+                      then:
+                        - lvgl.update:
+                            disp_bg_color: 0x554400
+                        - lvgl.label.update:
+                            id: spl_value_label
+                            text_color: 0xFFDD44
+                        - lvgl.label.update:
+                            id: peak_spl_label
+                            text_color: 0xFFDD44
+                        - lvgl.label.update:
+                            id: current_spl_label
+                            text_color: 0xFFDD44
+                        - lvgl.label.update:
+                            id: status_label
+                            text: "Volume High"
+                      else:
+                        - if:
+                            condition:
+                              lambda: return id(spl_color) == "green";
+                            then:
+                              - lvgl.update:
+                                  disp_bg_color: 0x004400
+                              - lvgl.label.update:
+                                  id: spl_value_label
+                                  text_color: 0x55FF55
+                              - lvgl.label.update:
+                                  id: peak_spl_label
+                                  text_color: 0x55FF55
+                              - lvgl.label.update:
+                                  id: current_spl_label
+                                  text_color: 0x55FF55
+                              - lvgl.label.update:
+                                  id: status_label
+                                  text: "Volume OK"
+                            else:
+                              - lvgl.update:
+                                  disp_bg_color: 0x000044
+                              - lvgl.label.update:
+                                  id: spl_value_label
+                                  text_color: 0x5599FF
+                              - lvgl.label.update:
+                                  id: peak_spl_label
+                                  text_color: 0x5599FF
+                              - lvgl.label.update:
+                                  id: current_spl_label
+                                  text_color: 0x5599FF
+                              - lvgl.label.update:
+                                  id: status_label
+                                  text: "Volume Too Low"
+      - if:
+          condition:
+            lambda: return id(dj_message_pending) && !id(spl_blink_on);
+          then:
+            - lvgl.update:
+                disp_bg_color: 0x111111
 
 sensor:
   - platform: wifi_signal
@@ -159,69 +350,25 @@ sensor:
     name: "SPL Peak"
     id: spl_peak
     unit_of_measurement: "dB"
-    filters:
-      - max:
-          window_size: 50
-          send_every: 5
-          send_first_at: 1
     on_value:
       - lvgl.label.update:
-          id: spl_value_label
+          id: peak_spl_label
           text: !lambda |-
-            static char buf[10];
-            snprintf(buf, 10, "%.1f", id(spl_peak).get_state());
+            static char buf[24];
+            snprintf(buf, 24, "%.1f dB Peak", x);
             return buf;
 
   - platform: template
     name: "SPL Average"
     id: spl_average
     unit_of_measurement: "dB"
-    filters:
-      - sliding_window_moving_average:
-          window_size: 500
-          send_every: 5
     on_value:
       - lvgl.label.update:
-          id: average_spl_label
+          id: spl_value_label
           text: !lambda |-
-            static char buf[24];
-            snprintf(buf, 24, "%.1f dB Avg (1m)", x);
+            static char buf[10];
+            snprintf(buf, 10, "%.1f", x);
             return buf;
-      - if:
-          condition:
-            lambda: return x < id(threshold_low).state;
-          then:
-            - lvgl.update:
-                disp_bg_color: 0x000044 # Dark Green
-            - lvgl.label.update:
-                id: status_label
-                text: "Volume Too Low"
-          else:
-            - if:
-                condition:
-                  lambda: return x < id(threshold_medium).state;
-                then:
-                  - lvgl.update:
-                      disp_bg_color: 0x00AA00 # Green
-                  - lvgl.label.update:
-                      id: status_label
-                      text: "Volume OK"
-                else:
-                  - if:
-                      condition:
-                        lambda: return x < id(threshold_high).state;
-                      then:
-                        - lvgl.update:
-                            disp_bg_color: 0xAA8800 # Orange
-                        - lvgl.label.update:
-                            id: status_label
-                            text: "Volume High"
-                      else:
-                        - lvgl.update:
-                            disp_bg_color: 0x990000 # Red
-                        - lvgl.label.update:
-                            id: status_label
-                            text: "Volume Critical"
 
 text_sensor:
   - platform: wifi_info
@@ -247,6 +394,36 @@ lvgl:
 
   page_wrap: true
   bg_color: 0x111111
+  top_layer:
+    widgets:
+      - button:
+          id: incoming_message_prompt
+          hidden: true
+          align: TOP_RIGHT
+          x: -8
+          y: 42
+          width: 288
+          height: 50
+          bg_color: 0x203050
+          layout:
+            type: flex
+            flex_flow: ROW
+            flex_align_main: CENTER
+            flex_align_cross: CENTER
+          on_click:
+            - lambda: id(dj_message_pending) = false;
+            - lvgl.widget.hide: incoming_message_prompt
+            - lvgl.page.show: incoming_message_page
+            - script.execute: apply_spl_color
+          widgets:
+            - label:
+                text: "✉"
+                text_font: envelope_font
+                text_color: 0xFFFFFF
+            - label:
+                text: "Click to show message"
+                text_font: roboto16
+                text_color: 0xFFFFFF
   pages:
     - id: main_page
       skip: false
@@ -369,8 +546,8 @@ lvgl:
               flex_align_cross: CENTER # they sould be centered
             widgets:
               - label:
-                  id: average_spl_label
-                  text: "---.- dBA Avg (1m)"
+                  id: peak_spl_label
+                  text: "---.- dBA Peak"
                   text_align: left
                   text_font: roboto24
                   text_color: 0xFFFFFF
@@ -386,6 +563,201 @@ lvgl:
                   width: 240
                   height: 24
                   pad_right: 50
+        - button:
+            width: 230
+            height: 48
+            align: CENTER
+            bg_color: 0x203050
+            on_click:
+              - lvgl.page.show: message_page
+            widgets:
+              - label:
+                  text: "Send message"
+                  align: CENTER
+                  text_font: roboto24
+                  text_color: 0xFFFFFF
+    - id: message_page
+      skip: true
+      width: 480
+      height: 480
+      bg_color: 0x101827
+      pad_all: 12
+      layout:
+        type: flex
+        flex_flow: COLUMN
+        flex_align_cross: CENTER
+      widgets:
+        - button:
+            width: 440
+            height: 55
+            bg_color: 0x334155
+            on_click:
+              - lvgl.page.show: main_page
+            widgets:
+              - label:
+                  text: "Back to SPL"
+                  align: CENTER
+                  text_font: roboto24
+                  text_color: 0xFFFFFF
+        - button:
+            width: 440
+            height: 55
+            bg_color: 0x203050
+            on_click:
+              - if:
+                  condition:
+                    lambda: return !id(dj_message_1).empty();
+                  then:
+                    - mqtt.publish:
+                        topic: !lambda return id(dj_message_topic);
+                        payload: !lambda return id(dj_message_1);
+                    - lvgl.page.show: main_page
+            widgets:
+              - label:
+                  id: message_label_1
+                  text: "Audio problem"
+                  align: CENTER
+                  text_font: roboto24
+                  text_color: 0xFFFFFF
+        - button:
+            width: 440
+            height: 55
+            bg_color: 0x203050
+            on_click:
+              - if:
+                  condition:
+                    lambda: return !id(dj_message_2).empty();
+                  then:
+                    - mqtt.publish:
+                        topic: !lambda return id(dj_message_topic);
+                        payload: !lambda return id(dj_message_2);
+                    - lvgl.page.show: main_page
+            widgets:
+              - label:
+                  id: message_label_2
+                  text: "Light problem"
+                  align: CENTER
+                  text_font: roboto24
+                  text_color: 0xFFFFFF
+        - button:
+            width: 440
+            height: 55
+            bg_color: 0x203050
+            on_click:
+              - if:
+                  condition:
+                    lambda: return !id(dj_message_3).empty();
+                  then:
+                    - mqtt.publish:
+                        topic: !lambda return id(dj_message_topic);
+                        payload: !lambda return id(dj_message_3);
+                    - lvgl.page.show: main_page
+            widgets:
+              - label:
+                  id: message_label_3
+                  text: "Yes"
+                  align: CENTER
+                  text_font: roboto24
+                  text_color: 0xFFFFFF
+        - button:
+            width: 440
+            height: 55
+            bg_color: 0x203050
+            on_click:
+              - if:
+                  condition:
+                    lambda: return !id(dj_message_4).empty();
+                  then:
+                    - mqtt.publish:
+                        topic: !lambda return id(dj_message_topic);
+                        payload: !lambda return id(dj_message_4);
+                    - lvgl.page.show: main_page
+            widgets:
+              - label:
+                  id: message_label_4
+                  text: "No"
+                  align: CENTER
+                  text_font: roboto24
+                  text_color: 0xFFFFFF
+        - button:
+            width: 440
+            height: 55
+            bg_color: 0x203050
+            on_click:
+              - if:
+                  condition:
+                    lambda: return !id(dj_message_5).empty();
+                  then:
+                    - mqtt.publish:
+                        topic: !lambda return id(dj_message_topic);
+                        payload: !lambda return id(dj_message_5);
+                    - lvgl.page.show: main_page
+            widgets:
+              - label:
+                  id: message_label_5
+                  text: "—"
+                  align: CENTER
+                  text_font: roboto24
+                  text_color: 0xFFFFFF
+        - button:
+            width: 440
+            height: 55
+            bg_color: 0x203050
+            on_click:
+              - if:
+                  condition:
+                    lambda: return !id(dj_message_6).empty();
+                  then:
+                    - mqtt.publish:
+                        topic: !lambda return id(dj_message_topic);
+                        payload: !lambda return id(dj_message_6);
+                    - lvgl.page.show: main_page
+            widgets:
+              - label:
+                  id: message_label_6
+                  text: "—"
+                  align: CENTER
+                  text_font: roboto24
+                  text_color: 0xFFFFFF
+    - id: incoming_message_page
+      skip: true
+      width: 480
+      height: 480
+      bg_color: 0x101827
+      pad_all: 20
+      layout:
+        type: flex
+        flex_flow: COLUMN
+        flex_align_cross: CENTER
+      widgets:
+        - label:
+            text: "Incoming message"
+            width: 430
+            height: 50
+            text_align: CENTER
+            text_font: roboto24
+            text_color: 0xFFFFFF
+        - label:
+            id: incoming_message_label
+            text: ""
+            width: 430
+            height: 300
+            long_mode: SCROLL
+            text_align: CENTER
+            text_font: roboto24
+            text_color: 0xFFFFFF
+        - button:
+            width: 220
+            height: 60
+            bg_color: 0x334155
+            on_click:
+              - lvgl.page.show: main_page
+            widgets:
+              - label:
+                  text: "Back to SPL"
+                  align: CENTER
+                  text_font: roboto24
+                  text_color: 0xFFFFFF
   on_boot:
     then:
       - lvgl.update:
@@ -431,6 +803,11 @@ font:
     id: roboto16
     size: 16
     bpp: 4
+  - file: "gfonts://Noto Sans Symbols 2"
+    id: envelope_font
+    size: 28
+    bpp: 4
+    glyphs: ["✉"]
 
 #-------------------------------------------
 # Touchscreen gt911 i2c

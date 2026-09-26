@@ -61,6 +61,7 @@ const wsService = new WebSocketService({
   sourceSettingsPath: join(__dirname, "source-settings.json"),
   splApiUrl: SPL_API_URL,
   splApiIntervalMilliseconds: SPL_API_INTERVAL_MS,
+  splSettingsPath: join(__dirname, "spl-settings.json"),
 });
 
 async function shutdown(signal: string) {

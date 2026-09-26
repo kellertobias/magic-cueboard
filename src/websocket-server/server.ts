@@ -16,6 +16,8 @@ import { WindowsMagicQService, type WindowsMagicQSnapshot, type WindowsSystemMet
 import { SPLApiService, splPublications, type SPLMeasurement } from "./services/spl-source";
 import { ToskLightApiService } from "./services/tosklight-api";
 import { OptimisticButtons } from "./services/optimistic-buttons";
+import { defaultSPLSettings, validateSPLSettings, type SPLSettings } from "../lib/spl-settings";
+import { SPLStateCalculator, type SPLState } from "./services/spl-state";
 
 export class WebSocketService {
   private wss: WebSocketServer;
@@ -55,6 +57,11 @@ export class WebSocketService {
   private layoutMode: "legacy" | "new";
   private layoutSettingsPath: string;
   private splApi: SPLApiService;
+  private splSettings: SPLSettings;
+  private splSettingsPath: string;
+  private splCalculator = new SPLStateCalculator();
+  private latestSPL: SPLState | null = null;
+  private splStateTimer: NodeJS.Timeout | null = null;
   private sourceSettingsPath: string;
   private localHardwareConnected = false;
   private localControllerEnabled = false;
@@ -86,6 +93,7 @@ export class WebSocketService {
     layoutSettingsPath,
     splApiUrl,
     splApiIntervalMilliseconds,
+    splSettingsPath,
     sourceSettingsPath,
   }: {
     listenIp: string;
@@ -108,6 +116,7 @@ export class WebSocketService {
     layoutSettingsPath: string;
     splApiUrl: string | null;
     splApiIntervalMilliseconds: number;
+    splSettingsPath: string;
     sourceSettingsPath: string;
   }) {
     this.listenIp = listenIp;
@@ -165,6 +174,8 @@ export class WebSocketService {
     this.windowsMagicq = new WindowsMagicQService(windowsMagicqUrl, windowsMagicqToken);
     this.toskLightApi = new ToskLightApiService(toskLightApiUrl);
     this.splApi = new SPLApiService(splApiUrl, splApiIntervalMilliseconds);
+    this.splSettingsPath = splSettingsPath;
+    this.splSettings = this.loadSPLSettings();
 
     // Register all source adapters once so the touchscreen can switch APIs.
     this.setupButtonControllerEvents();
@@ -178,6 +189,14 @@ export class WebSocketService {
     this.splApi.on("data", (data: SPLMeasurement) => this.publishSPL(data));
     this.splApi.on("warning", (error: Error) => console.warn("[SPL API]", error.message));
     this.mqttBroker.on("warning", (error: Error) => console.warn("[MQTT]", error.message));
+    this.mqttBroker.on("incoming", (topic: string, payload: string, clientId: string) => {
+      if (topic !== this.splSettings.messageTopic || !payload.trim()) return;
+      // MQTT clients commonly send plain text; accept JSON strings as well.
+      let message = payload;
+      try { const parsed = JSON.parse(payload); if (typeof parsed === "string") message = parsed; } catch { /* plain text */ }
+      this.broadcast({ type: "dj-message", data: { message: message.slice(0, 500) } });
+      if (clientId !== "dj-spl-meter") this.mqttBroker.publishText("tosklight/dj/display-inbox", message.slice(0, 500));
+    });
 
     // The Cueboard lives on the Pi. Linux discovers only the Leonardo USB ID;
     // Windows leaves serial ownership to its hardware bridge by default.
@@ -191,6 +210,8 @@ export class WebSocketService {
       this.toskLightApi.start();
     }
     this.mqttBroker.start();
+    this.publishDJMessageSettings();
+    this.splStateTimer = setInterval(() => this.refreshSPLState(), 250);
 
     // Start child process if available
     if (splApiUrl) {
@@ -506,6 +527,8 @@ export class WebSocketService {
       ws.send(JSON.stringify({ type: "source-values", data: { source: this.sourceSelection, activeSource: this.activeSurfaceMode } }));
       ws.send(JSON.stringify(this.hardwareConnectionMessage()));
       ws.send(JSON.stringify({ type: "system-metrics", data: this.windowsSystem }));
+      ws.send(JSON.stringify({ type: "spl-settings", data: this.splSettings }));
+      if (this.latestSPL) ws.send(JSON.stringify({ type: "spl-state", data: this.latestSPL }));
 
       // Programmer data is sent only when explicitly requested
 
@@ -583,6 +606,47 @@ export class WebSocketService {
         case "get-source":
           ws.send(JSON.stringify({ type: "source-values", data: { source: this.sourceSelection, activeSource: this.activeSurfaceMode } }));
           break;
+
+        case "get-spl-settings":
+          ws.send(JSON.stringify({ type: "spl-settings", data: this.splSettings }));
+          break;
+
+        case "set-spl-settings":
+          try {
+            const settings = validateSPLSettings(message.data);
+            writeFileSync(this.splSettingsPath, JSON.stringify(settings, null, 2));
+            this.splSettings = settings;
+            this.publishDJMessageSettings();
+            this.broadcast({ type: "spl-settings", data: settings });
+            this.refreshSPLState();
+          } catch (error) {
+            ws.send(JSON.stringify({ type: "spl-settings-error", data: { message: error instanceof Error ? error.message : String(error) } }));
+          }
+          break;
+
+        case "send-dj-message": {
+          const index = Number(message.data?.index);
+          const text = this.splSettings.messages[index];
+          if (!Number.isInteger(index) || index < 0 || index >= 6 || !text?.trim()) {
+            ws.send(JSON.stringify({ type: "spl-settings-error", data: { message: "Select a configured message." } }));
+            break;
+          }
+          this.mqttBroker.publishText(this.splSettings.messageTopic, text.trim());
+          this.mqttBroker.publishText("tosklight/dj/display-inbox", text.trim());
+          break;
+        }
+
+        case "send-pi-message": {
+          const text = message.data?.text;
+          if (typeof text !== "string" || !text.trim() || text.trim().length > 160) {
+            ws.send(JSON.stringify({ type: "pi-message-error", data: { message: "Enter a message of up to 160 characters." } }));
+            break;
+          }
+          this.mqttBroker.publishText(this.splSettings.messageTopic, text.trim());
+          this.mqttBroker.publishText("tosklight/dj/display-inbox", text.trim());
+          ws.send(JSON.stringify({ type: "pi-message-sent" }));
+          break;
+        }
 
         case "set-source":
           if (message.data?.source !== "auto" && message.data?.source !== "self" && message.data?.source !== "windows" && message.data?.source !== "tosklight") {
@@ -1105,15 +1169,48 @@ export class WebSocketService {
 
   private publishSPL(data: SPLMeasurement): void {
     this.broadcast({ type: "spl", data });
+    this.latestSPL = this.splCalculator.update(data.measured, data.freqMode, this.splSettings);
+    this.publishSPLState(this.latestSPL);
     for (const publication of splPublications(data)) {
       this.mqttBroker.publish(publication.topic, publication.value, publication.retain);
     }
+  }
+
+  private loadSPLSettings(): SPLSettings {
+    try {
+      if (existsSync(this.splSettingsPath)) return validateSPLSettings(JSON.parse(readFileSync(this.splSettingsPath, "utf-8")));
+    } catch (error) { console.warn("Cannot load SPL settings:", error); }
+    return defaultSPLSettings;
+  }
+
+  private refreshSPLState(): void {
+    const state = this.splCalculator.calculate(this.splSettings);
+    if (state && (state.color !== this.latestSPL?.color || state.average !== this.latestSPL?.average || state.peak !== this.latestSPL?.peak)) {
+      this.latestSPL = state;
+      this.publishSPLState(state);
+    }
+  }
+
+  private publishSPLState(state: SPLState): void {
+    this.broadcast({ type: "spl-state", data: state });
+    this.mqttBroker.publish("tosklight/spl/color", state.color, true);
+    this.mqttBroker.publish("tosklight/spl/level", state.average, true);
+    this.mqttBroker.publish("tosklight/spl/average", state.average, true);
+    this.mqttBroker.publish("tosklight/spl/peak", state.peak, true);
+  }
+
+  private publishDJMessageSettings(): void {
+    this.mqttBroker.publishText("tosklight/dj/message-topic", this.splSettings.messageTopic, true);
+    this.splSettings.messages.forEach((message, index) => {
+      this.mqttBroker.publishText(`tosklight/dj/preset/${index + 1}`, message, true);
+    });
   }
 
   public async stop(): Promise<void> {
     console.log("Shutting down WebSocket service...");
     this.releaseHeldPhysicalButtons();
     this.splApi.stop();
+    if (this.splStateTimer) clearInterval(this.splStateTimer);
     this.mqttBroker.publish("tosklight/spl/availability", "offline", true);
 
     // Clear show loading interval

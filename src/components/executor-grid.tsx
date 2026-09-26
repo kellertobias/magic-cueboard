@@ -204,7 +204,7 @@ function ExecutorPoti({
   );
 }
 
-export function ExecutorGrid({ openSettings }: { openSettings: () => void }) {
+export function ExecutorGrid({ openSettings, openMessages }: { openSettings: () => void; openMessages: () => void }) {
   const [active, setActive] = useState<Record<number, number>>({});
   const [executors, setExecutors] = useState<Record<number, Executor>>([]);
   const [showName, setShowName] = useState("<Unknown Show>");
@@ -260,6 +260,7 @@ export function ExecutorGrid({ openSettings }: { openSettings: () => void }) {
           <span className={clsx("rounded-full border px-2 py-1 text-[0.65rem] uppercase tracking-wide", activeSource === "tosklight" ? "border-teal-700 text-teal-300" : activeSource === "magicq" ? "border-blue-700 text-blue-300" : "border-amber-800 text-amber-300")}>
             {activeSource === "tosklight" ? "ToskLight mode" : activeSource === "magicq" ? "MagicQ mode" : "Waiting for application"}
           </span>
+          <button type="button" onClick={openMessages} className="rounded-full border border-blue-700 px-3 py-1 text-[0.65rem] uppercase tracking-wide text-blue-200 hover:bg-blue-950">Messages</button>
         </div>
         <div className="flex flex-row gap-4 items-center justify-end h-full pr-4">
           <ExecutorPoti

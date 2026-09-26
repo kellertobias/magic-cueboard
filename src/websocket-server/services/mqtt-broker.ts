@@ -30,6 +30,11 @@ export class MQTTBrokerService extends EventEmitter {
    * Sets up the MQTT broker with event handlers
    */
   private setupBroker(): void {
+    // Aedes passes a client only for publishes received over MQTT. Internal
+    // publications have no client and must never come back as incoming toasts.
+    this.broker.on("publish", (packet: PublishPacket, client: Client | null) => {
+      if (client) this.emit("incoming", packet.topic, packet.payload.toString(), client.id);
+    });
     // Handle client connections
     this.broker.on("client", (client: Client) => {
       console.log(`[MQTT] Client connected: ${client.id}`);
@@ -130,7 +135,10 @@ export class MQTTBrokerService extends EventEmitter {
    * @param message The message to publish
    */
   public publish(topic: string, message: unknown, retain = false): void {
-    const payload = JSON.stringify(message);
+    this.publishText(topic, JSON.stringify(message), retain);
+  }
+
+  public publishText(topic: string, payload: string, retain = false): void {
     const packet: PublishPacket = {
       cmd: "publish",
       topic,

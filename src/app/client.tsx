@@ -9,9 +9,11 @@ import { OptionsModal } from "@/components/options-modal";
 import clsx from "clsx";
 import { Clock } from "@/components/clock";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
+import { DJMessages } from "@/components/dj-messages";
 
 export default function Home() {
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
+  const [isMessagesOpen, setIsMessagesOpen] = useState(false);
 
   return (
     <WebSocketProvider>
@@ -38,8 +40,9 @@ export default function Home() {
 
           {/* Right Section - 4/5 width */}
           <div className="col-span-5 h-[320px]">
-            <ExecutorGrid openSettings={() => setIsOptionsOpen(true)} />
+            <ExecutorGrid openSettings={() => setIsOptionsOpen(true)} openMessages={() => setIsMessagesOpen(true)} />
           </div>
+          <DJMessages open={isMessagesOpen} onClose={() => setIsMessagesOpen(false)} />
         </main>
 
         <OptionsModal
