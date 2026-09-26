@@ -12,7 +12,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { systemCommands } from "@/system-commands";
 import { WebSocketServer, WebSocket } from "ws";
-import { WindowsMagicQService, type WindowsMagicQSnapshot } from "./services/windows-magicq";
+import { WindowsMagicQService, type WindowsMagicQSnapshot, type WindowsSystemMetrics } from "./services/windows-magicq";
 import { SPLApiService, splPublications, type SPLMeasurement } from "./services/spl-source";
 import { ToskLightApiService } from "./services/tosklight-api";
 import { OptimisticButtons } from "./services/optimistic-buttons";
@@ -60,6 +60,7 @@ export class WebSocketService {
   private localControllerEnabled = false;
   private remoteSurfaceConnected = false;
   private remoteHardwareAvailable = false;
+  private windowsSystem: WindowsSystemMetrics | null = null;
   private heldPhysicalButtons = new Map<number, { source: "self" | "windows" | "tosklight"; type: "toggle" | "flash" | "solo" | "fader" | "other" }>();
   private ignoredPhysicalReleases = new Set<number>();
   private optimisticButtons = new OptimisticButtons();
@@ -327,7 +328,7 @@ export class WebSocketService {
   private setupWindowsMagicQEvents(): void {
     this.windowsMagicq.on("connection", (connected: boolean) => {
       this.remoteSurfaceConnected = connected;
-      if (!connected) { this.remoteHardwareAvailable = false; this.optimisticButtons.clear(); }
+      if (!connected) { this.remoteHardwareAvailable = false; this.optimisticButtons.clear(); this.windowsSystem = null; this.broadcast({ type: "system-metrics", data: null }); }
       if (connected) {
         if (!this.localHardwareConnected) this.windowsMagicq.setBrightness(this.brightnessSettings.inactive, this.brightnessSettings.active);
         if (this.magicqSource === "windows") this.windowsMagicq.setLayout(this.layoutMode);
@@ -339,9 +340,17 @@ export class WebSocketService {
       console.warn("[Windows MagicQ]", error.message);
     });
     this.windowsMagicq.on("snapshot", (snapshot: WindowsMagicQSnapshot) => { void this.handleWindowsSnapshot(snapshot); });
+    this.windowsMagicq.on("system-metrics", (value: WindowsSystemMetrics) => this.updateWindowsSystem(value));
+  }
+
+  private updateWindowsSystem(value: WindowsSystemMetrics | null): void {
+    if (value && (!Number.isFinite(value.timestamp) || !Number.isFinite(value.ramUsedBytes) || !Number.isFinite(value.ramTotalBytes) || !Array.isArray(value.cpuHistory))) return;
+    this.windowsSystem = value;
+    this.broadcast({ type: "system-metrics", data: value });
   }
 
   private async handleWindowsSnapshot(snapshot: WindowsMagicQSnapshot): Promise<void> {
+      if (snapshot.system) this.updateWindowsSystem(snapshot.system);
       const snapshotSource = snapshot.source ?? "magicq";
       this.remoteHardwareAvailable = snapshot.hardware
         ? snapshot.hardware.cueboardPresent === true || snapshot.hardware.cueboardConnected
@@ -496,6 +505,7 @@ export class WebSocketService {
       ws.send(JSON.stringify({ type: "layout-values", data: { mode: this.layoutMode } }));
       ws.send(JSON.stringify({ type: "source-values", data: { source: this.sourceSelection, activeSource: this.activeSurfaceMode } }));
       ws.send(JSON.stringify(this.hardwareConnectionMessage()));
+      ws.send(JSON.stringify({ type: "system-metrics", data: this.windowsSystem }));
 
       // Programmer data is sent only when explicitly requested
 

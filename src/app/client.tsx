@@ -25,7 +25,7 @@ export default function Home() {
           )}
         >
           <div className="col-span-2 flex flex-col h-[320px]">
-            <div className="flex flex-row justify-center items-center pt-8 pb-1">
+            <div className="flex flex-row items-center pt-2 pb-1">
               <ConnectionStatus />
             </div>
             <div className="h-20">

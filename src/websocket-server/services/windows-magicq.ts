@@ -27,6 +27,17 @@ export interface WindowsMagicQSnapshot {
     cueboardPresent: boolean | null;
     cueboardConnected: boolean;
   };
+  system?: WindowsSystemMetrics | null;
+}
+
+export interface WindowsSystemMetrics {
+  timestamp: number;
+  cpuP95Percent: number | null;
+  ramUsedBytes: number;
+  ramTotalBytes: number;
+  gpuPercent: number | null;
+  temperatureC: number | null;
+  cpuHistory: number[];
 }
 
 export class WindowsMagicQService extends EventEmitter {
@@ -62,9 +73,11 @@ export class WindowsMagicQService extends EventEmitter {
     });
     socket.on("message", (bytes) => {
       try {
-        const value = JSON.parse(bytes.toString()) as Partial<WindowsMagicQSnapshot>;
-        if (!(["magicq-snapshot", "surface-snapshot"] as unknown[]).includes(value.type) || !([1, 2] as unknown[]).includes(value.schemaVersion) || value.page !== 1 || typeof value.connected !== "boolean" || !value.executors || typeof value.executors !== "object") return;
-        this.emit("snapshot", value as WindowsMagicQSnapshot);
+        const value = JSON.parse(bytes.toString()) as (Partial<WindowsMagicQSnapshot> & { data?: WindowsSystemMetrics }) | { type: "system-metrics"; data?: WindowsSystemMetrics };
+        if (value.type === "system-metrics") { this.emit("system-metrics", value.data); return; }
+        const snapshot = value as Partial<WindowsMagicQSnapshot>;
+        if (!(["magicq-snapshot", "surface-snapshot"] as unknown[]).includes(snapshot.type) || !([1, 2] as unknown[]).includes(snapshot.schemaVersion) || snapshot.page !== 1 || typeof snapshot.connected !== "boolean" || !snapshot.executors || typeof snapshot.executors !== "object") return;
+        this.emit("snapshot", snapshot as WindowsMagicQSnapshot);
       } catch (error) {
         this.emit("warning", error);
       }
