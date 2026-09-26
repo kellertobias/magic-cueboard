@@ -9,7 +9,7 @@ import {
   MagicQProgrammerService,
 } from "./services/magicq-programmer";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { systemCommands } from "@/system-commands";
 import { WebSocketServer, WebSocket } from "ws";
 import { WindowsMagicQService, type WindowsMagicQSnapshot, type WindowsSystemMetrics } from "./services/windows-magicq";
@@ -17,6 +17,7 @@ import { SPLApiService, splPublications, type SPLMeasurement } from "./services/
 import { ToskLightApiService } from "./services/tosklight-api";
 import { OptimisticButtons } from "./services/optimistic-buttons";
 import { defaultSPLSettings, validateSPLSettings, type SPLSettings } from "../lib/spl-settings";
+import { defaultPiMessagesState, validatePiMessagesState, type PiMessage, type PiMessagesState } from "../lib/pi-messages";
 import { SPLStateCalculator, type SPLState } from "./services/spl-state";
 
 export class WebSocketService {
@@ -59,6 +60,8 @@ export class WebSocketService {
   private splApi: SPLApiService;
   private splSettings: SPLSettings;
   private splSettingsPath: string;
+  private piMessagesPath: string;
+  private piMessages: PiMessagesState;
   private splCalculator = new SPLStateCalculator();
   private latestSPL: SPLState | null = null;
   private splStateTimer: NodeJS.Timeout | null = null;
@@ -176,6 +179,8 @@ export class WebSocketService {
     this.splApi = new SPLApiService(splApiUrl, splApiIntervalMilliseconds);
     this.splSettingsPath = splSettingsPath;
     this.splSettings = this.loadSPLSettings();
+    this.piMessagesPath = join(dirname(splSettingsPath), "pi-messages.json");
+    this.piMessages = this.loadPiMessages();
 
     // Register all source adapters once so the touchscreen can switch APIs.
     this.setupButtonControllerEvents();
@@ -194,6 +199,7 @@ export class WebSocketService {
       // MQTT clients commonly send plain text; accept JSON strings as well.
       let message = payload;
       try { const parsed = JSON.parse(payload); if (typeof parsed === "string") message = parsed; } catch { /* plain text */ }
+      this.appendPiMessage("received", message.slice(0, 500));
       this.broadcast({ type: "dj-message", data: { message: message.slice(0, 500) } });
       if (clientId !== "dj-spl-meter") this.mqttBroker.publishText("tosklight/dj/display-inbox", message.slice(0, 500));
     });
@@ -528,6 +534,7 @@ export class WebSocketService {
       ws.send(JSON.stringify(this.hardwareConnectionMessage()));
       ws.send(JSON.stringify({ type: "system-metrics", data: this.windowsSystem }));
       ws.send(JSON.stringify({ type: "spl-settings", data: this.splSettings }));
+      ws.send(JSON.stringify({ type: "pi-messages-state", data: this.piMessages }));
       if (this.latestSPL) ws.send(JSON.stringify({ type: "spl-state", data: this.latestSPL }));
 
       // Programmer data is sent only when explicitly requested
@@ -611,6 +618,10 @@ export class WebSocketService {
           ws.send(JSON.stringify({ type: "spl-settings", data: this.splSettings }));
           break;
 
+        case "get-pi-messages":
+          ws.send(JSON.stringify({ type: "pi-messages-state", data: this.piMessages }));
+          break;
+
         case "set-spl-settings":
           try {
             const settings = validateSPLSettings(message.data);
@@ -644,7 +655,21 @@ export class WebSocketService {
           }
           this.mqttBroker.publishText(this.splSettings.messageTopic, text.trim());
           this.mqttBroker.publishText("tosklight/dj/display-inbox", text.trim());
+          this.appendPiMessage("sent", text.trim());
           ws.send(JSON.stringify({ type: "pi-message-sent" }));
+          break;
+        }
+
+        case "set-pi-preset": {
+          const index = message.data?.index;
+          const text = message.data?.text;
+          if ((index !== 0 && index !== 1) || typeof text !== "string" || !text.trim() || text.trim().length > 160) {
+            ws.send(JSON.stringify({ type: "pi-message-error", data: { message: "Enter a message of up to 160 characters before holding a preset." } }));
+            break;
+          }
+          this.piMessages.presets[index] = text.trim();
+          this.savePiMessages();
+          this.broadcast({ type: "pi-messages-state", data: this.piMessages });
           break;
         }
 
@@ -1181,6 +1206,25 @@ export class WebSocketService {
       if (existsSync(this.splSettingsPath)) return validateSPLSettings(JSON.parse(readFileSync(this.splSettingsPath, "utf-8")));
     } catch (error) { console.warn("Cannot load SPL settings:", error); }
     return defaultSPLSettings;
+  }
+
+  private loadPiMessages(): PiMessagesState {
+    try {
+      if (existsSync(this.piMessagesPath)) return validatePiMessagesState(JSON.parse(readFileSync(this.piMessagesPath, "utf-8")));
+    } catch (error) { console.warn("Cannot load Pi messages:", error); }
+    return { presets: [...defaultPiMessagesState.presets], history: [] };
+  }
+
+  private savePiMessages(): void {
+    try { writeFileSync(this.piMessagesPath, JSON.stringify(this.piMessages, null, 2)); }
+    catch (error) { console.warn("Cannot save Pi messages:", error); }
+  }
+
+  private appendPiMessage(direction: PiMessage["direction"], text: string): void {
+    this.piMessages.history.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, direction, text, timestamp: new Date().toISOString() });
+    this.piMessages.history = this.piMessages.history.slice(-200);
+    this.savePiMessages();
+    this.broadcast({ type: "pi-messages-state", data: this.piMessages });
   }
 
   private refreshSPLState(): void {

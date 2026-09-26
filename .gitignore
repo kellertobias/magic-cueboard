@@ -46,6 +46,7 @@ next-env.d.ts
 src/websocket-server/brightness-settings.json
 src/websocket-server/layout-settings.json
 src/websocket-server/spl-settings.json
+src/websocket-server/pi-messages.json
 
 __pycache__/**/*
 .esphome/**/*
