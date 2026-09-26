@@ -663,7 +663,7 @@ export class WebSocketService {
         case "set-pi-preset": {
           const index = message.data?.index;
           const text = message.data?.text;
-          if ((index !== 0 && index !== 1) || typeof text !== "string" || !text.trim() || text.trim().length > 160) {
+          if ((!Number.isInteger(index) || index < 0 || index >= 6) || typeof text !== "string" || !text.trim() || text.trim().length > 160) {
             ws.send(JSON.stringify({ type: "pi-message-error", data: { message: "Enter a message of up to 160 characters before holding a preset." } }));
             break;
           }

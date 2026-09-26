@@ -242,6 +242,7 @@ export function ExecutorGrid({ openSettings, openMessages }: { openSettings: () 
     <div className="flex flex-col gap-4 h-full px-4 py-6">
       <div className="flex flex-row justify-between items-center h-[40px]">
         <div className="flex flex-row gap-4 items-center justify-start">
+          <button type="button" onClick={openMessages} className={clsx(btnBaseClasses, "border-gray-600 text-gray-300")}>Messages</button>
           <button
             type="button"
             className={clsx(btnBaseClasses, "border-gray-600 text-gray-300")}
@@ -260,7 +261,6 @@ export function ExecutorGrid({ openSettings, openMessages }: { openSettings: () 
           <span className={clsx("rounded-full border px-2 py-1 text-[0.65rem] uppercase tracking-wide", activeSource === "tosklight" ? "border-teal-700 text-teal-300" : activeSource === "magicq" ? "border-blue-700 text-blue-300" : "border-amber-800 text-amber-300")}>
             {activeSource === "tosklight" ? "ToskLight mode" : activeSource === "magicq" ? "MagicQ mode" : "Waiting for application"}
           </span>
-          <button type="button" onClick={openMessages} className="rounded-full border border-blue-700 px-3 py-1 text-[0.65rem] uppercase tracking-wide text-blue-200 hover:bg-blue-950">Messages</button>
         </div>
         <div className="flex flex-row gap-4 items-center justify-end h-full pr-4">
           <ExecutorPoti
