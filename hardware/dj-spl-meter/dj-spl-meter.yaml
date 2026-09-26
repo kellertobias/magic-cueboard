@@ -1,6 +1,17 @@
 esphome:
   name: "dj-spl-meter"
   friendly_name: "DJ SPL Meter"
+  on_boot:
+    priority: 800
+    then:
+      # ESPHome consumes one inbound MQTT event per loop; keep up with SPL bursts.
+      - lambda: App.set_loop_interval(5);
+  on_loop:
+    then:
+      # ESPHome's MQTT backend handles one event per loop. Drain a bounded
+      # batch on the main thread before LVGL redraws the display.
+      - lambda: |-
+          for (int i = 0; i < 8; ++i) id(display_mqtt).loop();
   #name_add_mac_suffix: true
   project:
     name: "Guition.ESP32_S3_4848S040"
@@ -12,15 +23,9 @@ esphome:
 api:
   reboot_timeout: 0s
 
-# Enable web logging
+# Logs stay on the native API; publishing each log over MQTT floods its queues.
 logger:
-  level: DEBUG
-  logs:
-    esphome: DEBUG
-    component: DEBUG
-    wifi: DEBUG
-    lvgl: DEBUG
-    display: DEBUG
+  level: INFO
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -51,9 +56,11 @@ wifi:
 
 # MQTT Client Configuration
 mqtt:
+  id: display_mqtt
   broker: !secret mqtt_broker
   client_id: dj-spl-meter
   discovery: false # Disable Home Assistant MQTT discovery
+  log_topic: null
   on_connect:
     then:
       - logger.log: "MQTT Connected"
@@ -63,15 +70,6 @@ mqtt:
 
   # The Qboard owns SPL calculation and thresholds. Its topics are retained.
   on_message:
-    - topic: "spl/value"
-      then:
-        - lvgl.label.update:
-            id: current_spl_label
-            text: !lambda |-
-              static char buf[32];
-              snprintf(buf, 32, "%.1f dBA", atof(x.c_str()));
-              return buf;
-
     - topic: "tosklight/spl/level"
       then:
         - sensor.template.publish:
@@ -80,9 +78,6 @@ mqtt:
 
     - topic: "tosklight/spl/peak"
       then:
-        - sensor.template.publish:
-            id: spl_peak
-            state: !lambda return atof(x.c_str());
         - lvgl.bar.update:
             id: spl_bar
             value: !lambda return min(max((float) atof(x.c_str()), 50.0f), 110.0f);
@@ -104,6 +99,9 @@ mqtt:
         - lvgl.label.update:
             id: incoming_message_label
             text: !lambda return id(dj_incoming_message).c_str();
+        - logger.log:
+            level: INFO
+            format: "Technician message received by display"
         - lvgl.page.show: main_page
         - lvgl.label.update:
             id: time_label
@@ -245,12 +243,6 @@ script:
                 id: spl_value_label
                 text_color: 0xFFFFFF
             - lvgl.label.update:
-                id: peak_spl_label
-                text_color: 0xFFFFFF
-            - lvgl.label.update:
-                id: current_spl_label
-                text_color: 0xFFFFFF
-            - lvgl.label.update:
                 id: status_label
                 text: "Volume Critical"
           else:
@@ -263,12 +255,6 @@ script:
                   - lvgl.label.update:
                       id: spl_value_label
                       text_color: 0xFFFFFF
-                  - lvgl.label.update:
-                      id: peak_spl_label
-                      text_color: 0xFFFFFF
-                  - lvgl.label.update:
-                      id: current_spl_label
-                      text_color: 0xFFFFFF
                 else:
                   - if:
                       condition:
@@ -278,12 +264,6 @@ script:
                             disp_bg_color: 0x554400
                         - lvgl.label.update:
                             id: spl_value_label
-                            text_color: 0xFFFFFF
-                        - lvgl.label.update:
-                            id: peak_spl_label
-                            text_color: 0xFFFFFF
-                        - lvgl.label.update:
-                            id: current_spl_label
                             text_color: 0xFFFFFF
                         - lvgl.label.update:
                             id: status_label
@@ -299,12 +279,6 @@ script:
                                   id: spl_value_label
                                   text_color: 0xFFFFFF
                               - lvgl.label.update:
-                                  id: peak_spl_label
-                                  text_color: 0xFFFFFF
-                              - lvgl.label.update:
-                                  id: current_spl_label
-                                  text_color: 0xFFFFFF
-                              - lvgl.label.update:
                                   id: status_label
                                   text: "Volume OK"
                             else:
@@ -312,12 +286,6 @@ script:
                                   disp_bg_color: 0x000044
                               - lvgl.label.update:
                                   id: spl_value_label
-                                  text_color: 0xFFFFFF
-                              - lvgl.label.update:
-                                  id: peak_spl_label
-                                  text_color: 0xFFFFFF
-                              - lvgl.label.update:
-                                  id: current_spl_label
                                   text_color: 0xFFFFFF
                               - lvgl.label.update:
                                   id: status_label
@@ -364,20 +332,9 @@ sensor:
             return buf;
 
   - platform: template
-    name: "SPL Peak"
-    id: spl_peak
-    unit_of_measurement: "dB"
-    on_value:
-      - lvgl.label.update:
-          id: peak_spl_label
-          text: !lambda |-
-            static char buf[24];
-            snprintf(buf, 24, "%.1f dB Peak", x);
-            return buf;
-
-  - platform: template
     name: "SPL Average"
     id: spl_average
+    internal: true
     unit_of_measurement: "dB"
     on_value:
       - lvgl.label.update:
@@ -418,9 +375,18 @@ lvgl:
           align: TOP_LEFT
           x: 8
           y: 8
-          width: 52
-          height: 52
-          bg_color: 0x203050
+          width: 72
+          height: 64
+          pad_all: 0
+          bg_opa: TRANSP
+          border_opa: TRANSP
+          shadow_opa: TRANSP
+          outline_opa: TRANSP
+          pressed:
+            bg_opa: TRANSP
+            border_opa: TRANSP
+            shadow_opa: TRANSP
+            outline_opa: TRANSP
           on_click:
             - if:
                 condition:
@@ -434,19 +400,17 @@ lvgl:
                 else:
                   - lvgl.page.show: message_page
           widgets:
-            - label:
+            - image:
                 id: envelope_label
-                text: "✉"
+                src: envelope_image
                 align: CENTER
-                text_font: envelope_font
-                text_color: 0xFFFFFF
       - label:
           id: incoming_message_banner
           hidden: true
           align: TOP_MID
-          x: 28
+          x: 40
           y: 34
-          width: 350
+          width: 320
           height: 55
           long_mode: SCROLL_CIRCULAR
           text: ""
@@ -458,11 +422,13 @@ lvgl:
       skip: false
       layout:
         type: flex
-        flex_flow: column_wrap
+        flex_flow: COLUMN
+        pad_row: 0
       width: 480
       height: 480
       bg_color: 0x000000
       bg_opa: 0%
+      scrollable: false
       pad_all: 0
       widgets:
         - label:
@@ -485,7 +451,7 @@ lvgl:
             text: "--:--:--"
             y: 80
             width: 480
-            height: 40
+            height: 64
             text_font: roboto48
             text_align: center
             text_color: 0xFFFFFF
@@ -560,45 +526,13 @@ lvgl:
             width: 480
             height: 10
             text: " "
-        - obj:
-            align: CENTER
-            width: 480
-            height: 40
-            pad_all: 3
-            y: 320
-            bg_opa: TRANSP
-            scrollable: false
-            border_opa: TRANSP
-            layout: # enable the FLEX layout for the children widgets
-              type: FLEX
-              flex_flow: ROW # the order of the widgets starts top left
-              flex_align_cross: CENTER # they sould be centered
-            widgets:
-              - label:
-                  id: peak_spl_label
-                  text: "---.- dBA Peak"
-                  text_align: left
-                  text_font: roboto24
-                  text_color: 0xFFFFFF
-                  width: 240
-                  height: 24
-                  pad_left: 30
-              - label:
-                  id: current_spl_label
-                  text: "---.- dBA"
-                  text_align: right
-                  text_font: roboto24
-                  text_color: 0xFFFFFF
-                  width: 240
-                  height: 24
-                  pad_right: 50
     - id: message_page
       skip: true
       width: 480
       height: 480
       bg_color: 0x101827
       pad_all: 12
-      pad_top: 70
+      pad_top: 80
       layout:
         pad_row: 6
         type: flex
@@ -743,7 +677,7 @@ lvgl:
       height: 480
       bg_color: 0x101827
       pad_all: 20
-      pad_top: 70
+      pad_top: 80
       scrollable: false
       layout:
         pad_row: 10
@@ -881,11 +815,6 @@ font:
     id: roboto16
     size: 16
     bpp: 4
-  - file: "gfonts://Noto Sans Symbols 2"
-    id: envelope_font
-    size: 28
-    bpp: 4
-    glyphs: ["✉"]
 
 #-------------------------------------------
 # Touchscreen gt911 i2c
@@ -981,3 +910,10 @@ display:
         - 6 #b3
         - 7 #b4
         - 15 #b5
+
+# Filled white icon with transparent gaps, independent of downloaded fonts.
+image:
+  - file: icons/envelope.svg
+    id: envelope_image
+    type: RGB565
+    transparency: alpha_channel
