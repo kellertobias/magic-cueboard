@@ -593,8 +593,8 @@ lvgl:
       bg_color: 0x101827
       pad_all: 12
       pad_top: 70
-      pad_row: 6
       layout:
+        pad_row: 6
         type: flex
         flex_flow: COLUMN
         flex_align_cross: CENTER
@@ -738,9 +738,9 @@ lvgl:
       bg_color: 0x101827
       pad_all: 20
       pad_top: 70
-      pad_row: 10
       scrollable: false
       layout:
+        pad_row: 10
         type: flex
         flex_flow: COLUMN
         flex_align_cross: CENTER
@@ -765,13 +765,13 @@ lvgl:
             width: 440
             height: 60
             pad_all: 0
-            pad_column: 8
             bg_opa: TRANSP
             border_opa: TRANSP
             scrollable: false
             layout:
               type: flex
               flex_flow: ROW
+              pad_column: 8
             widgets:
               - button:
                   width: 138
