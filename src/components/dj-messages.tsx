@@ -14,6 +14,7 @@ export function DJMessages({ open, onClose }: { open: boolean; onClose: () => vo
   const [djSettings, setDJSettings] = useState<SPLSettings>(defaultSPLSettings);
   const [shift, setShift] = useState(true);
   const [error, setError] = useState("");
+  const [savedNotice, setSavedNotice] = useState("");
   const [piMessages, setPiMessages] = useState<PiMessagesState>(defaultPiMessagesState);
   const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
   const messageInput = useRef<HTMLTextAreaElement>(null);
@@ -23,6 +24,8 @@ export function DJMessages({ open, onClose }: { open: boolean; onClose: () => vo
   const handleMessage = useCallback((event: { type: string; data: any }) => {
     if (event.type === "dj-message") setToast({ id: Date.now(), message: event.data.message });
     if (event.type === "pi-messages-state") setPiMessages(event.data);
+    if (event.type === "dj-preset-saved") setSavedNotice(`DJ message ${event.data.index + 1} saved`);
+    if (event.type === "pi-preset-saved") setSavedNotice(`Technician message ${event.data.index + 1} saved`);
     if (event.type === "spl-settings") setDJSettings(event.data);
     if (event.type === "spl-settings-error") setError(event.data.message);
     if (event.type === "pi-message-error") setError(event.data.message);
@@ -64,6 +67,7 @@ export function DJMessages({ open, onClose }: { open: boolean; onClose: () => vo
   const stopHold = () => { if (holdTimer.current) clearTimeout(holdTimer.current); holdTimer.current = null; };
   const startHold = (index: number) => {
     stopHold();
+    setSavedNotice("");
     heldPreset.current = null;
     holdTimer.current = setTimeout(() => {
       heldPreset.current = index;
@@ -79,12 +83,12 @@ export function DJMessages({ open, onClose }: { open: boolean; onClose: () => vo
     {open && <div className="absolute inset-0 z-20 flex flex-col bg-gray-950 p-3 text-white">
       <div className="grid min-h-0 flex-1 grid-cols-[0.85fr_1fr_1.25fr] gap-3">
         <section className="flex min-h-0 min-w-0 flex-col gap-2" aria-label="Message presets">
-          <div className="flex items-center gap-3"><button type="button" onClick={onClose} className="rounded-lg border border-amber-500 bg-amber-900 px-4 py-2 text-sm font-semibold">Back to keyboard</button><button type="button" aria-label="Switch DJ and technician messages" onClick={() => setMode(value => value === "dj" ? "technician" : "dj")} className="rounded border border-gray-600 bg-gray-900 px-2 py-2 text-sm"><span className={mode === "dj" ? "font-bold text-blue-300" : "text-gray-400"}>DJ</span> / <span className={mode === "technician" ? "font-bold text-blue-300" : "text-gray-400"}>Technician</span></button></div>
+          <div className="flex items-center gap-3"><button type="button" onClick={onClose} className="rounded-lg border border-amber-500 bg-amber-900 px-4 py-2 text-sm font-semibold">Back to keyboard</button><button type="button" aria-label="Switch DJ and technician messages" onClick={() => { setSavedNotice(""); setMode(value => value === "dj" ? "technician" : "dj"); }} className={`rounded border px-2 py-2 text-sm ${mode === "dj" ? "border-sky-400 bg-sky-900" : "border-blue-700 bg-blue-950"}`}><span className={mode === "dj" ? "font-bold text-sky-200" : "text-gray-400"}>DJ</span> / <span className={mode === "technician" ? "font-bold text-blue-300" : "text-gray-400"}>Technician</span></button></div>
           <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-3 gap-2">
           {(mode === "dj" ? djSettings.messages : piMessages.presets).map((message, index) => <button key={index} type="button" disabled={status !== "connected"}
             onPointerDown={() => startHold(index)} onPointerUp={stopHold} onPointerCancel={stopHold} onPointerLeave={stopHold}
             onClick={() => { if (heldPreset.current === index) { heldPreset.current = null; return; } if (message) { if (mode === "dj") sendMessage({ type: "send-dj-message", data: { index } }); else send(message); } }}
-            className={`min-h-0 touch-none rounded-xl border p-2 text-base font-semibold ${message ? "border-blue-600 bg-blue-950" : "border-gray-700 bg-gray-800 text-gray-400"} disabled:opacity-50`}>{message || "[empty]"}</button>)}
+            className={`min-h-0 touch-none rounded-xl border p-2 text-base font-semibold ${message ? mode === "dj" ? "border-sky-400 bg-sky-900 text-sky-100" : "border-blue-600 bg-blue-950" : "border-gray-700 bg-gray-800 text-gray-400"} disabled:opacity-50`}>{message || "[empty]"}</button>)}
           </div>
         </section>
         <section className="flex min-h-0 min-w-0 flex-col border-x border-gray-700 px-3" aria-label="Conversation">
@@ -95,6 +99,7 @@ export function DJMessages({ open, onClose }: { open: boolean; onClose: () => vo
               <time dateTime={item.timestamp} className="mt-0.5 text-[11px] text-gray-400">{item.direction === "sent" ? "Sent" : "Received"} · {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
             </div>)}
           </div>
+          {savedNotice && <p role="status" className="pb-1 text-xs text-green-400">{savedNotice}</p>}
           {error && <p role="alert" className="pb-1 text-xs text-red-300">{error}</p>}
           <div className="flex gap-1.5 border-t border-gray-700 pt-2">
             <textarea ref={messageInput} aria-label="Current message" maxLength={160} value={draft} onChange={event => setDraft(event.target.value)} placeholder="Type a message…"

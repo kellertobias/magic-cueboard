@@ -19,3 +19,5 @@ The older `spl/value` topic remains the raw meter reading. The DJ display firmwa
 The DJ display firmware is in `hardware/dj-spl-meter/dj-spl-meter.yaml`. It still needs to be compiled and flashed onto the ESP32 display after changing this file.
 
 The Messages screen switches between **Technician** presets (Pi-local) and **DJ** presets (the six buttons on the DJ controller). The active set is bold. Type with the same keyboard and hold a slot to replace its message. DJ changes are saved with the SPL configuration and immediately published as retained MQTT preset labels; technician changes remain separate.
+
+The SPL threshold scale is 50–110 dB. Threshold handles have 44-pixel touch targets. Save is disabled until settings change, then shows Saving while waiting for the server and Saved after a successful disk write. DJ and Technician preset saves also receive server-confirmed feedback. DJ presets use light blue, Technician presets use dark blue. App controls disable browser text selection.

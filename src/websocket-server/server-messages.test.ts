@@ -6,6 +6,26 @@ import { WebSocketService } from "./server";
 import { defaultSPLSettings } from "../lib/spl-settings";
 
 describe("DJ preset editing", () => {
+  it("acknowledges SPL saves only after persistence succeeds", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "spl-save-"));
+    try {
+      const runtime = Object.create(WebSocketService.prototype);
+      runtime.splSettingsPath = join(directory, "settings.json");
+      runtime.publishDJMessageSettings = () => {};
+      runtime.refreshSPLState = () => {};
+      runtime.broadcast = () => {};
+      const replies: Array<{ type: string }> = [];
+      const ws = { send: (value: string) => replies.push(JSON.parse(value)) };
+      const command = JSON.stringify({ type: "set-spl-settings", data: defaultSPLSettings });
+      await runtime.handleWebSocketMessage(ws, command);
+      expect(replies).toEqual([{ type: "spl-settings-saved" }]);
+      runtime.splSettingsPath = join(directory, "missing", "settings.json");
+      replies.length = 0;
+      await runtime.handleWebSocketMessage(ws, command);
+      expect(replies.map(item => item.type)).toEqual(["spl-settings-error"]);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  });
+
   it("saves one DJ slot, preserves SPL thresholds, and publishes retained DJ labels", async () => {
     const directory = mkdtempSync(join(tmpdir(), "dj-preset-"));
     try {
@@ -23,7 +43,7 @@ describe("DJ preset editing", () => {
       expect(saved.average).toEqual(defaultSPLSettings.average);
       expect(runtime.piMessages.presets).toEqual(["Technician message"]);
       expect(publications).toContainEqual(["tosklight/dj/preset/6", "Please call the technician", true]);
-      expect(replies).toEqual([]);
+      expect(replies).toEqual([{ type: "dj-preset-saved", data: { index: 5 } }]);
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 });

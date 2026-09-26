@@ -250,16 +250,13 @@ export function ExecutorGrid({ openSettings, openMessages }: { openSettings: () 
               openSettings();
             }}
           >
-            Open Settings
+            Settings
           </button>
           <span className="text-gray-300 font-mono text-sm">
             Current Show: {showName}
           </span>
-          <span className="rounded-full border border-gray-700 px-2 py-1 text-[0.65rem] uppercase tracking-wide text-gray-400" title={hardware.detail}>
-            {hardware.status === "connecting" ? "Cueboard reconnecting" : hardware.transport === "local" ? "Pi Cueboard" : "Windows Cueboard"}
-          </span>
-          <span className={clsx("rounded-full border px-2 py-1 text-[0.65rem] uppercase tracking-wide", activeSource === "tosklight" ? "border-teal-700 text-teal-300" : activeSource === "magicq" ? "border-blue-700 text-blue-300" : "border-amber-800 text-amber-300")}>
-            {activeSource === "tosklight" ? "ToskLight mode" : activeSource === "magicq" ? "MagicQ mode" : "Waiting for application"}
+          <span className={clsx("rounded-full border px-3 py-1 text-[0.65rem] uppercase tracking-wide", activeSource === "tosklight" ? "border-teal-700 text-teal-300" : activeSource === "magicq" ? "border-blue-700 text-blue-300" : "border-amber-800 text-amber-300")} title={hardware.detail}>
+            {activeSource === "tosklight" ? "ToskLight" : activeSource === "magicq" ? "MagicQ" : "Waiting"} · {hardware.status === "connecting" ? "Cueboard reconnecting" : hardware.transport === "local" ? "Pi Cueboard" : "Windows Cueboard"}
           </span>
         </div>
         <div className="flex flex-row gap-4 items-center justify-end h-full pr-4">

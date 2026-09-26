@@ -630,6 +630,7 @@ export class WebSocketService {
             this.publishDJMessageSettings();
             this.broadcast({ type: "spl-settings", data: settings });
             this.refreshSPLState();
+            ws.send(JSON.stringify({ type: "spl-settings-saved" }));
           } catch (error) {
             ws.send(JSON.stringify({ type: "spl-settings-error", data: { message: error instanceof Error ? error.message : String(error) } }));
           }
@@ -647,6 +648,7 @@ export class WebSocketService {
             this.splSettings = settings;
             this.publishDJMessageSettings();
             this.broadcast({ type: "spl-settings", data: settings });
+            ws.send(JSON.stringify({ type: "dj-preset-saved", data: { index } }));
           } catch (error) {
             ws.send(JSON.stringify({ type: "spl-settings-error", data: { message: error instanceof Error ? error.message : String(error) } }));
           }
@@ -686,9 +688,15 @@ export class WebSocketService {
             ws.send(JSON.stringify({ type: "pi-message-error", data: { message: "Enter a message of up to 160 characters before holding a preset." } }));
             break;
           }
-          this.piMessages.presets[index] = text.trim();
-          this.savePiMessages();
-          this.broadcast({ type: "pi-messages-state", data: this.piMessages });
+          try {
+            const next = { ...this.piMessages, presets: this.piMessages.presets.map((item, i) => i === index ? text.trim() : item) };
+            writeFileSync(this.piMessagesPath, JSON.stringify(next, null, 2));
+            this.piMessages = next;
+            this.broadcast({ type: "pi-messages-state", data: this.piMessages });
+            ws.send(JSON.stringify({ type: "pi-preset-saved", data: { index } }));
+          } catch (error) {
+            ws.send(JSON.stringify({ type: "pi-message-error", data: { message: error instanceof Error ? error.message : String(error) } }));
+          }
           break;
         }
 
