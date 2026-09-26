@@ -105,7 +105,9 @@ mqtt:
             id: incoming_message_label
             text: !lambda return id(dj_incoming_message).c_str();
         - lvgl.page.show: main_page
-        - lvgl.widget.hide: time_label
+        - lvgl.label.update:
+            id: time_label
+            text_opa: 0%
         - lvgl.widget.show: incoming_message_banner
         - lvgl.label.update:
             id: incoming_message_banner
@@ -331,7 +333,9 @@ script:
     then:
       - lambda: id(dj_message_pending) = false;
       - lvgl.widget.hide: incoming_message_banner
-      - lvgl.widget.show: time_label
+      - lvgl.label.update:
+          id: time_label
+          text_opa: 100%
       - lvgl.widget.show: envelope_label
       - lvgl.page.show: main_page
       - script.execute: apply_spl_color
@@ -423,7 +427,9 @@ lvgl:
                   lambda: return id(dj_message_pending);
                 then:
                   - lvgl.widget.hide: incoming_message_banner
-                  - lvgl.widget.show: time_label
+                  - lvgl.label.update:
+                      id: time_label
+                      text_opa: 100%
                   - lvgl.page.show: incoming_message_page
                 else:
                   - lvgl.page.show: message_page
