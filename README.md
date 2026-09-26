@@ -51,7 +51,7 @@ MAGICQ_SOURCE=self
 
 # Windows mode: the ToskLight Windows hardware bridge owns MagicQ and the USB board.
 MAGICQ_SOURCE=windows
-WINDOWS_MAGICQ_WS_URL=ws://192.168.42.127:47872/surface
+WINDOWS_MAGICQ_WS_URL=ws://10.99.0.1:47872/surface
 WINDOWS_MAGICQ_TOKEN=tosklight-magicq-feed-v1
 ```
 
@@ -67,14 +67,14 @@ SURFACE_SOURCE=auto
 # MagicQ on the Windows show computer. Buttons travel back over the same
 # authenticated WebSocket and Windows uses MagicQ Remote (CHWP), not OSC.
 SURFACE_SOURCE=windows
-WINDOWS_MAGICQ_WS_URL=ws://192.168.42.127:47872/surface
+WINDOWS_MAGICQ_WS_URL=ws://10.99.0.1:47872/surface
 WINDOWS_MAGICQ_TOKEN=tosklight-magicq-feed-v1
 
 # ToskLight on the Windows show computer. The Pi reads page/show metadata
 # through its operator session and sends physical Cueboard actions to the bridge.
 SURFACE_SOURCE=tosklight
-TOSKLIGHT_API_URL=http://192.168.42.127:5000
-WINDOWS_MAGICQ_WS_URL=ws://192.168.42.127:47872/surface
+TOSKLIGHT_API_URL=http://10.99.0.1:5000
+WINDOWS_MAGICQ_WS_URL=ws://10.99.0.1:47872/surface
 ```
 
 `MAGICQ_SOURCE=self|windows` remains accepted for existing installations. `SURFACE_SOURCE` takes precedence and supports `auto|self|windows|tosklight`. In automatic mode the Pi can boot before the Windows computer; both the Windows surface connection and the ToskLight API retry after boot, disconnects, and restarts. MagicQ always has priority.

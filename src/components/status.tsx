@@ -1,7 +1,8 @@
 "use client";
 
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { systemMetricsAreFresh } from "@/lib/system-metrics";
 
 interface SystemMetrics {
   timestamp: number;
@@ -11,6 +12,7 @@ interface SystemMetrics {
   gpuPercent: number | null;
   temperatureC: number | null;
   cpuHistory: number[];
+  ageMilliseconds?: number;
 }
 
 const percent = (value: number | null) => value === null ? "—" : `${Math.round(value)}%`;
@@ -18,28 +20,36 @@ const gib = (bytes: number) => (bytes / 1073741824).toFixed(1);
 
 export function ConnectionStatus() {
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
-  const [now, setNow] = useState(Date.now());
-  const { status, disconnectedSince } = useWebSocket((message) => {
-    if (message.type === "system-metrics") setMetrics(message.data ?? null);
+  const [now, setNow] = useState(0);
+  const receivedAt = useRef<number | null>(null);
+  const [windowsConnected, setWindowsConnected] = useState<boolean | null>(null);
+  const { status, disconnectedSince, sendMessage } = useWebSocket((message) => {
+    if (message.type === "system-metrics") { receivedAt.current = performance.now(); setNow(performance.now()); setMetrics(message.data ?? null); }
+    if (message.type === "system-connection") setWindowsConnected(Boolean(message.data?.connected));
   });
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setNow(performance.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const current = status === "connected" && metrics && now - metrics.timestamp < 10000 ? metrics : null;
+  useEffect(() => {
+    if (status === "connected") sendMessage({ type: "get-system-metrics" });
+    else { setMetrics(null); receivedAt.current = null; setWindowsConnected(null); }
+  }, [status, sendMessage]);
+
+  const current = status === "connected" && metrics && systemMetricsAreFresh(receivedAt.current, now, metrics.ageMilliseconds) ? metrics : null;
   const history = current?.cpuHistory?.slice(-60) ?? [];
   const points = history.map((value, index) => `${history.length === 1 ? 0 : index * 72 / (history.length - 1)},${16 - Math.max(0, Math.min(100, value)) * 0.15}`).join(" ");
-  const disconnectedSeconds = disconnectedSince ? Math.floor((now - disconnectedSince) / 1000) : 0;
+  const disconnectedSeconds = disconnectedSince ? Math.floor((Date.now() - disconnectedSince) / 1000) : 0;
 
   return (
     <div className="w-full px-3 text-white">
       <div className="flex items-center justify-between h-5">
         <span className="text-[10px] uppercase tracking-[0.15em] text-gray-400">Windows system</span>
         <div className="flex items-center gap-1.5 text-[11px] text-gray-300">
-          <span className={`w-2 h-2 rounded-full ${status === "connected" ? "bg-green-500 shadow-[0_0_5px_#22c55e]" : "bg-red-500"}`} />
-          {status === "connected" ? "Connected" : status === "connecting" ? "Connecting" : `Disconnected${disconnectedSeconds >= 3 ? ` (${disconnectedSeconds}s)` : ""}`}
+          <span className={`w-2 h-2 rounded-full ${current ? "bg-green-500 shadow-[0_0_5px_#22c55e]" : "bg-red-500"}`} />
+          {status !== "connected" ? `Pi disconnected${disconnectedSeconds >= 3 ? ` (${disconnectedSeconds}s)` : ""}` : current ? "Connected" : windowsConnected === false ? "Windows reconnecting" : "Waiting for Windows data"}
         </div>
       </div>
       <div className="grid grid-cols-4 gap-1 mt-0.5">

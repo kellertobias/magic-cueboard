@@ -22,3 +22,10 @@ body {
 
 /* Touch controls must not start browser text selection. */
 *, *::before, *::after { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+
+/* Match the Pi's physical strip display, not a resized desktop window. */
+@media (device-width: 1480px) and (device-height: 320px) {
+  *, *::before, *::after { cursor: none !important; }
+  input[type="range"]::-webkit-slider-thumb { cursor: none !important; }
+  input[type="range"]::-moz-range-thumb { cursor: none !important; }
+}

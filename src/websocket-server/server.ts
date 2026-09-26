@@ -71,6 +71,7 @@ export class WebSocketService {
   private remoteSurfaceConnected = false;
   private remoteHardwareAvailable = false;
   private windowsSystem: WindowsSystemMetrics | null = null;
+  private windowsSystemReceivedAt = 0;
   private heldPhysicalButtons = new Map<number, { source: "self" | "windows" | "tosklight"; type: "toggle" | "flash" | "solo" | "fader" | "other" }>();
   private ignoredPhysicalReleases = new Set<number>();
   private optimisticButtons = new OptimisticButtons();
@@ -355,6 +356,7 @@ export class WebSocketService {
   private setupWindowsMagicQEvents(): void {
     this.windowsMagicq.on("connection", (connected: boolean) => {
       this.remoteSurfaceConnected = connected;
+      this.broadcast({ type: "system-connection", data: { connected } });
       if (!connected) { this.remoteHardwareAvailable = false; this.optimisticButtons.clear(); this.windowsSystem = null; this.broadcast({ type: "system-metrics", data: null }); }
       if (connected) {
         if (!this.localHardwareConnected) this.windowsMagicq.setBrightness(this.brightnessSettings.inactive, this.brightnessSettings.active);
@@ -372,8 +374,13 @@ export class WebSocketService {
 
   private updateWindowsSystem(value: WindowsSystemMetrics | null): void {
     if (value && (!Number.isFinite(value.timestamp) || !Number.isFinite(value.ramUsedBytes) || !Number.isFinite(value.ramTotalBytes) || !Array.isArray(value.cpuHistory))) return;
+    if (value?.timestamp !== this.windowsSystem?.timestamp) this.windowsSystemReceivedAt = performance.now();
     this.windowsSystem = value;
-    this.broadcast({ type: "system-metrics", data: value });
+    this.broadcast({ type: "system-metrics", data: this.systemMetricsForClient() });
+  }
+
+  private systemMetricsForClient(): WindowsSystemMetrics | null {
+    return this.windowsSystem ? { ...this.windowsSystem, ageMilliseconds: Math.max(0, performance.now() - this.windowsSystemReceivedAt) } : null;
   }
 
   private async handleWindowsSnapshot(snapshot: WindowsMagicQSnapshot): Promise<void> {
@@ -532,7 +539,8 @@ export class WebSocketService {
       ws.send(JSON.stringify({ type: "layout-values", data: { mode: this.layoutMode } }));
       ws.send(JSON.stringify({ type: "source-values", data: { source: this.sourceSelection, activeSource: this.activeSurfaceMode } }));
       ws.send(JSON.stringify(this.hardwareConnectionMessage()));
-      ws.send(JSON.stringify({ type: "system-metrics", data: this.windowsSystem }));
+      ws.send(JSON.stringify({ type: "system-metrics", data: this.systemMetricsForClient() }));
+      ws.send(JSON.stringify({ type: "system-connection", data: { connected: this.remoteSurfaceConnected } }));
       ws.send(JSON.stringify({ type: "spl-settings", data: this.splSettings }));
       ws.send(JSON.stringify({ type: "pi-messages-state", data: this.piMessages }));
       if (this.latestSPL) ws.send(JSON.stringify({ type: "spl-state", data: this.latestSPL }));
@@ -653,7 +661,13 @@ export class WebSocketService {
             ws.send(JSON.stringify({ type: "spl-settings-error", data: { message: error instanceof Error ? error.message : String(error) } }));
           }
           break;
+
         }
+
+        case "get-system-metrics":
+          ws.send(JSON.stringify({ type: "system-metrics", data: this.systemMetricsForClient() }));
+          ws.send(JSON.stringify({ type: "system-connection", data: { connected: this.remoteSurfaceConnected } }));
+          break;
 
         case "send-dj-message": {
           const index = Number(message.data?.index);

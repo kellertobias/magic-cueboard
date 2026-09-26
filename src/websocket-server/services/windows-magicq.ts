@@ -38,6 +38,7 @@ export interface WindowsSystemMetrics {
   gpuPercent: number | null;
   temperatureC: number | null;
   cpuHistory: number[];
+  ageMilliseconds?: number;
 }
 
 export class WindowsMagicQService extends EventEmitter {
@@ -45,14 +46,16 @@ export class WindowsMagicQService extends EventEmitter {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private stopping = false;
   private retryMilliseconds = 1000;
+  private heartbeat: NodeJS.Timeout | null = null;
 
-  constructor(private endpoint: string, private token: string) {
+  constructor(private endpoint: string, private token: string, private timing = { heartbeat: 5000, stale: 15000, retry: 1000, maxRetry: 10000 }) {
     super();
     const url = new URL(endpoint);
     if (url.protocol !== "ws:" && url.protocol !== "wss:") {
       throw new Error("WINDOWS_MAGICQ_WS_URL must use ws:// or wss://");
     }
     if (token.length < 16) throw new Error("WINDOWS_MAGICQ_TOKEN is too short");
+    this.retryMilliseconds = timing.retry;
   }
 
   public start(): void {
@@ -64,10 +67,17 @@ export class WindowsMagicQService extends EventEmitter {
     if (this.stopping || this.socket) return;
     const url = new URL(this.endpoint);
     url.searchParams.set("token", this.token);
-    const socket = new WebSocket(url);
+    const socket = new WebSocket(url, { handshakeTimeout: 5000 });
     this.socket = socket;
+    let lastPong = performance.now();
+    socket.on("pong", () => { lastPong = performance.now(); });
     socket.on("open", () => {
-      this.retryMilliseconds = 1000;
+      lastPong = performance.now();
+      this.heartbeat = setInterval(() => {
+        if (performance.now() - lastPong > this.timing.stale) { socket.terminate(); return; }
+        if (socket.readyState === WebSocket.OPEN) socket.ping();
+      }, this.timing.heartbeat);
+      this.retryMilliseconds = this.timing.retry;
       this.emit("connection", true);
       socket.send(JSON.stringify({ type: "snapshot-request" }));
     });
@@ -84,11 +94,13 @@ export class WindowsMagicQService extends EventEmitter {
     });
     socket.on("error", (error) => this.emit("warning", error));
     socket.on("close", () => {
+      if (this.heartbeat) clearInterval(this.heartbeat);
+      this.heartbeat = null;
       if (this.socket === socket) this.socket = null;
       this.emit("connection", false);
       if (!this.stopping) {
-        this.reconnectTimer = setTimeout(() => this.connect(), this.retryMilliseconds);
-        this.retryMilliseconds = Math.min(10000, this.retryMilliseconds * 2);
+        this.reconnectTimer = setTimeout(() => { this.reconnectTimer = null; this.connect(); }, this.retryMilliseconds);
+        this.retryMilliseconds = Math.min(this.timing.maxRetry, this.retryMilliseconds * 2);
       }
     });
   }
@@ -119,6 +131,8 @@ export class WindowsMagicQService extends EventEmitter {
 
   public async stop(): Promise<void> {
     this.stopping = true;
+    if (this.heartbeat) clearInterval(this.heartbeat);
+    this.heartbeat = null;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
     const socket = this.socket;

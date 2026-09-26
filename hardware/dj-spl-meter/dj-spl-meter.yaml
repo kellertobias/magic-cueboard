@@ -85,7 +85,7 @@ mqtt:
             state: !lambda return atof(x.c_str());
         - lvgl.bar.update:
             id: spl_bar
-            value: !lambda return min(max((float) atof(x.c_str()), 0.0f), 110.0f);
+            value: !lambda return min(max((float) atof(x.c_str()), 50.0f), 110.0f);
 
     - topic: "tosklight/spl/color"
       then:
@@ -105,7 +105,11 @@ mqtt:
             id: incoming_message_label
             text: !lambda return id(dj_incoming_message).c_str();
         - lvgl.page.show: main_page
-        - lvgl.widget.show: incoming_message_prompt
+        - lvgl.widget.hide: time_label
+        - lvgl.widget.show: incoming_message_banner
+        - lvgl.label.update:
+            id: incoming_message_banner
+            text: !lambda return id(dj_incoming_message).c_str();
         - script.execute: apply_spl_color
 
     - topic: "tosklight/dj/message-topic"
@@ -237,13 +241,13 @@ script:
                 disp_bg_color: 0x990000
             - lvgl.label.update:
                 id: spl_value_label
-                text_color: 0xFF5555
+                text_color: 0xFFFFFF
             - lvgl.label.update:
                 id: peak_spl_label
-                text_color: 0xFF5555
+                text_color: 0xFFFFFF
             - lvgl.label.update:
                 id: current_spl_label
-                text_color: 0xFF5555
+                text_color: 0xFFFFFF
             - lvgl.label.update:
                 id: status_label
                 text: "Volume Critical"
@@ -256,13 +260,13 @@ script:
                       disp_bg_color: 0x110000
                   - lvgl.label.update:
                       id: spl_value_label
-                      text_color: 0x550000
+                      text_color: 0xFFFFFF
                   - lvgl.label.update:
                       id: peak_spl_label
-                      text_color: 0x550000
+                      text_color: 0xFFFFFF
                   - lvgl.label.update:
                       id: current_spl_label
-                      text_color: 0x550000
+                      text_color: 0xFFFFFF
                 else:
                   - if:
                       condition:
@@ -272,13 +276,13 @@ script:
                             disp_bg_color: 0x554400
                         - lvgl.label.update:
                             id: spl_value_label
-                            text_color: 0xFFDD44
+                            text_color: 0xFFFFFF
                         - lvgl.label.update:
                             id: peak_spl_label
-                            text_color: 0xFFDD44
+                            text_color: 0xFFFFFF
                         - lvgl.label.update:
                             id: current_spl_label
-                            text_color: 0xFFDD44
+                            text_color: 0xFFFFFF
                         - lvgl.label.update:
                             id: status_label
                             text: "Volume High"
@@ -291,13 +295,13 @@ script:
                                   disp_bg_color: 0x004400
                               - lvgl.label.update:
                                   id: spl_value_label
-                                  text_color: 0x55FF55
+                                  text_color: 0xFFFFFF
                               - lvgl.label.update:
                                   id: peak_spl_label
-                                  text_color: 0x55FF55
+                                  text_color: 0xFFFFFF
                               - lvgl.label.update:
                                   id: current_spl_label
-                                  text_color: 0x55FF55
+                                  text_color: 0xFFFFFF
                               - lvgl.label.update:
                                   id: status_label
                                   text: "Volume OK"
@@ -306,13 +310,13 @@ script:
                                   disp_bg_color: 0x000044
                               - lvgl.label.update:
                                   id: spl_value_label
-                                  text_color: 0x5599FF
+                                  text_color: 0xFFFFFF
                               - lvgl.label.update:
                                   id: peak_spl_label
-                                  text_color: 0x5599FF
+                                  text_color: 0xFFFFFF
                               - lvgl.label.update:
                                   id: current_spl_label
-                                  text_color: 0x5599FF
+                                  text_color: 0xFFFFFF
                               - lvgl.label.update:
                                   id: status_label
                                   text: "Volume Too Low"
@@ -320,8 +324,17 @@ script:
           condition:
             lambda: return id(dj_message_pending) && !id(spl_blink_on);
           then:
-            - lvgl.update:
-                disp_bg_color: 0x111111
+            - lvgl.widget.hide: envelope_label
+          else:
+            - lvgl.widget.show: envelope_label
+  - id: dismiss_message
+    then:
+      - lambda: id(dj_message_pending) = false;
+      - lvgl.widget.hide: incoming_message_banner
+      - lvgl.widget.show: time_label
+      - lvgl.widget.show: envelope_label
+      - lvgl.page.show: main_page
+      - script.execute: apply_spl_color
 
 sensor:
   - platform: wifi_signal
@@ -397,33 +410,43 @@ lvgl:
   top_layer:
     widgets:
       - button:
-          id: incoming_message_prompt
-          hidden: true
-          align: TOP_RIGHT
-          x: -8
-          y: 42
-          width: 288
-          height: 50
+          id: message_menu_button
+          align: TOP_LEFT
+          x: 8
+          y: 8
+          width: 52
+          height: 52
           bg_color: 0x203050
-          layout:
-            type: flex
-            flex_flow: ROW
-            flex_align_main: CENTER
-            flex_align_cross: CENTER
           on_click:
-            - lambda: id(dj_message_pending) = false;
-            - lvgl.widget.hide: incoming_message_prompt
-            - lvgl.page.show: incoming_message_page
-            - script.execute: apply_spl_color
+            - if:
+                condition:
+                  lambda: return id(dj_message_pending);
+                then:
+                  - lvgl.widget.hide: incoming_message_banner
+                  - lvgl.widget.show: time_label
+                  - lvgl.page.show: incoming_message_page
+                else:
+                  - lvgl.page.show: message_page
           widgets:
             - label:
+                id: envelope_label
                 text: "✉"
+                align: CENTER
                 text_font: envelope_font
                 text_color: 0xFFFFFF
-            - label:
-                text: "Click to show message"
-                text_font: roboto16
-                text_color: 0xFFFFFF
+      - label:
+          id: incoming_message_banner
+          hidden: true
+          align: TOP_MID
+          x: 28
+          y: 34
+          width: 350
+          height: 55
+          long_mode: SCROLL_CIRCULAR
+          text: ""
+          text_font: roboto24
+          text_align: CENTER
+          text_color: 0xFFFFFF
   pages:
     - id: main_page
       skip: false
@@ -446,7 +469,7 @@ lvgl:
             text_align: right
             text_font: roboto16
             text_color: 0xFFFFFF
-            text_opa: 70%
+            text_opa: 100%
         - label:
             width: 480
             height: 5
@@ -487,8 +510,8 @@ lvgl:
                   height: 10
                   indicator:
                     bg_color: 0xFFFFFF
-                  value: 30
-                  min_value: 0
+                  value: 50
+                  min_value: 50
                   max_value: 110
                   bg_color: 0x333333
                   arc_width: 4
@@ -509,14 +532,14 @@ lvgl:
             text_color: 0xFFFFFF
         - label:
             id: spl_unit_label
-            text: "dBA (Peak 1m)"
+            text: "dBA Average"
             width: 480
             y: 300
             x: 0
             text_font: roboto24
             text_align: center
             text_color: 0xFFFFFF
-            text_opa: 70%
+            text_opa: 100%
         - label:
             id: status_label
             text_font: roboto24
@@ -526,7 +549,7 @@ lvgl:
             x: 0
             text_align: center
             text_color: 0xFFFFFF
-            text_opa: 70%
+            text_opa: 100%
         - label:
             width: 480
             height: 10
@@ -563,25 +586,14 @@ lvgl:
                   width: 240
                   height: 24
                   pad_right: 50
-        - button:
-            width: 230
-            height: 48
-            align: CENTER
-            bg_color: 0x203050
-            on_click:
-              - lvgl.page.show: message_page
-            widgets:
-              - label:
-                  text: "Send message"
-                  align: CENTER
-                  text_font: roboto24
-                  text_color: 0xFFFFFF
     - id: message_page
       skip: true
       width: 480
       height: 480
       bg_color: 0x101827
       pad_all: 12
+      pad_top: 70
+      pad_row: 6
       layout:
         type: flex
         flex_flow: COLUMN
@@ -589,19 +601,19 @@ lvgl:
       widgets:
         - button:
             width: 440
-            height: 55
+            height: 48
             bg_color: 0x334155
             on_click:
               - lvgl.page.show: main_page
             widgets:
               - label:
-                  text: "Back to SPL"
+                  text: "Close"
                   align: CENTER
                   text_font: roboto24
                   text_color: 0xFFFFFF
         - button:
             width: 440
-            height: 55
+            height: 48
             bg_color: 0x203050
             on_click:
               - if:
@@ -621,7 +633,7 @@ lvgl:
                   text_color: 0xFFFFFF
         - button:
             width: 440
-            height: 55
+            height: 48
             bg_color: 0x203050
             on_click:
               - if:
@@ -641,7 +653,7 @@ lvgl:
                   text_color: 0xFFFFFF
         - button:
             width: 440
-            height: 55
+            height: 48
             bg_color: 0x203050
             on_click:
               - if:
@@ -661,7 +673,7 @@ lvgl:
                   text_color: 0xFFFFFF
         - button:
             width: 440
-            height: 55
+            height: 48
             bg_color: 0x203050
             on_click:
               - if:
@@ -681,7 +693,7 @@ lvgl:
                   text_color: 0xFFFFFF
         - button:
             width: 440
-            height: 55
+            height: 48
             bg_color: 0x203050
             on_click:
               - if:
@@ -701,7 +713,7 @@ lvgl:
                   text_color: 0xFFFFFF
         - button:
             width: 440
-            height: 55
+            height: 48
             bg_color: 0x203050
             on_click:
               - if:
@@ -725,6 +737,9 @@ lvgl:
       height: 480
       bg_color: 0x101827
       pad_all: 20
+      pad_top: 70
+      pad_row: 10
+      scrollable: false
       layout:
         type: flex
         flex_flow: COLUMN
@@ -733,7 +748,7 @@ lvgl:
         - label:
             text: "Incoming message"
             width: 430
-            height: 50
+            height: 35
             text_align: CENTER
             text_font: roboto24
             text_color: 0xFFFFFF
@@ -741,20 +756,77 @@ lvgl:
             id: incoming_message_label
             text: ""
             width: 430
-            height: 300
+            height: 190
             long_mode: SCROLL
             text_align: CENTER
             text_font: roboto24
             text_color: 0xFFFFFF
+        - obj:
+            width: 440
+            height: 60
+            pad_all: 0
+            pad_column: 8
+            bg_opa: TRANSP
+            border_opa: TRANSP
+            scrollable: false
+            layout:
+              type: flex
+              flex_flow: ROW
+            widgets:
+              - button:
+                  width: 138
+                  height: 60
+                  bg_color: 0x203050
+                  on_click:
+                    - mqtt.publish:
+                        topic: !lambda return id(dj_message_topic);
+                        payload: "No"
+                    - script.execute: dismiss_message
+                  widgets:
+                    - label:
+                        text: "No"
+                        align: CENTER
+                        text_font: roboto24
+                        text_color: 0xFFFFFF
+              - button:
+                  width: 138
+                  height: 60
+                  bg_color: 0x203050
+                  on_click:
+                    - mqtt.publish:
+                        topic: !lambda return id(dj_message_topic);
+                        payload: "OK"
+                    - script.execute: dismiss_message
+                  widgets:
+                    - label:
+                        text: "OK"
+                        align: CENTER
+                        text_font: roboto24
+                        text_color: 0xFFFFFF
+              - button:
+                  width: 138
+                  height: 60
+                  bg_color: 0x203050
+                  on_click:
+                    - mqtt.publish:
+                        topic: !lambda return id(dj_message_topic);
+                        payload: "Yes"
+                    - script.execute: dismiss_message
+                  widgets:
+                    - label:
+                        text: "Yes"
+                        align: CENTER
+                        text_font: roboto24
+                        text_color: 0xFFFFFF
         - button:
-            width: 220
+            width: 440
             height: 60
             bg_color: 0x334155
             on_click:
-              - lvgl.page.show: main_page
+              - script.execute: dismiss_message
             widgets:
               - label:
-                  text: "Back to SPL"
+                  text: "Close"
                   align: CENTER
                   text_font: roboto24
                   text_color: 0xFFFFFF
