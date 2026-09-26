@@ -635,6 +635,24 @@ export class WebSocketService {
           }
           break;
 
+        case "set-dj-preset": {
+          const index = message.data?.index;
+          const text = message.data?.text;
+          try {
+            if (!Number.isInteger(index) || index < 0 || index >= 6 || typeof text !== "string" || !text.trim() || text.trim().length > 160) {
+              throw new Error("Enter a message of up to 160 characters before holding a preset.");
+            }
+            const settings = { ...this.splSettings, messages: this.splSettings.messages.map((item, i) => i === index ? text.trim() : item) };
+            writeFileSync(this.splSettingsPath, JSON.stringify(settings, null, 2));
+            this.splSettings = settings;
+            this.publishDJMessageSettings();
+            this.broadcast({ type: "spl-settings", data: settings });
+          } catch (error) {
+            ws.send(JSON.stringify({ type: "spl-settings-error", data: { message: error instanceof Error ? error.message : String(error) } }));
+          }
+          break;
+        }
+
         case "send-dj-message": {
           const index = Number(message.data?.index);
           const text = this.splSettings.messages[index];
@@ -644,6 +662,7 @@ export class WebSocketService {
           }
           this.mqttBroker.publishText(this.splSettings.messageTopic, text.trim());
           this.mqttBroker.publishText("tosklight/dj/display-inbox", text.trim());
+          this.appendPiMessage("sent", text.trim());
           break;
         }
 

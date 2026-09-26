@@ -4,10 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { defaultPiMessagesState, type PiMessagesState } from "@/lib/pi-messages";
 
+import { defaultSPLSettings, type SPLSettings } from "@/lib/spl-settings";
+
 const keyboardRows = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 
 export function DJMessages({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [draft, setDraft] = useState("");
+  const [mode, setMode] = useState<"technician" | "dj">("technician");
+  const [djSettings, setDJSettings] = useState<SPLSettings>(defaultSPLSettings);
   const [shift, setShift] = useState(true);
   const [error, setError] = useState("");
   const [piMessages, setPiMessages] = useState<PiMessagesState>(defaultPiMessagesState);
@@ -19,12 +23,14 @@ export function DJMessages({ open, onClose }: { open: boolean; onClose: () => vo
   const handleMessage = useCallback((event: { type: string; data: any }) => {
     if (event.type === "dj-message") setToast({ id: Date.now(), message: event.data.message });
     if (event.type === "pi-messages-state") setPiMessages(event.data);
+    if (event.type === "spl-settings") setDJSettings(event.data);
+    if (event.type === "spl-settings-error") setError(event.data.message);
     if (event.type === "pi-message-error") setError(event.data.message);
     if (event.type === "pi-message-sent") { setDraft(""); setError(""); messageInput.current?.focus(); }
   }, []);
   const { status, sendMessage } = useWebSocket(handleMessage, []);
 
-  useEffect(() => { if (open && status === "connected") sendMessage({ type: "get-pi-messages" }); }, [open, status, sendMessage]);
+  useEffect(() => { if (open && status === "connected") { sendMessage({ type: "get-pi-messages" }); sendMessage({ type: "get-spl-settings" }); } }, [open, status, sendMessage]);
 
   useEffect(() => {
     if (!toast) return;
@@ -64,19 +70,20 @@ export function DJMessages({ open, onClose }: { open: boolean; onClose: () => vo
       if (!draft.trim()) { setError("Type a message before holding a preset."); return; }
       if (status !== "connected") { setError("Qboard is disconnected."); return; }
       setError("");
-      sendMessage({ type: "set-pi-preset", data: { index, text: draft.trim() } });
+      if (mode === "dj") sendMessage({ type: "set-dj-preset", data: { index, text: draft.trim() } });
+      else sendMessage({ type: "set-pi-preset", data: { index, text: draft.trim() } });
     }, 650);
   };
 
   return <>
     {open && <div className="absolute inset-0 z-20 flex flex-col bg-gray-950 p-3 text-white">
       <div className="grid min-h-0 flex-1 grid-cols-[0.85fr_1fr_1.25fr] gap-3">
-        <section className="flex min-h-0 min-w-0 flex-col gap-2" aria-label="Pi presets">
-          <div className="flex items-center gap-3"><button type="button" onClick={onClose} className="rounded-lg border border-amber-500 bg-amber-900 px-4 py-2 text-sm font-semibold">Back to keyboard</button><h2 className="text-sm font-semibold">Text messages</h2></div>
+        <section className="flex min-h-0 min-w-0 flex-col gap-2" aria-label="Message presets">
+          <div className="flex items-center gap-3"><button type="button" onClick={onClose} className="rounded-lg border border-amber-500 bg-amber-900 px-4 py-2 text-sm font-semibold">Back to keyboard</button><button type="button" aria-label="Switch DJ and technician messages" onClick={() => setMode(value => value === "dj" ? "technician" : "dj")} className="rounded border border-gray-600 bg-gray-900 px-2 py-2 text-sm"><span className={mode === "dj" ? "font-bold text-blue-300" : "text-gray-400"}>DJ</span> / <span className={mode === "technician" ? "font-bold text-blue-300" : "text-gray-400"}>Technician</span></button></div>
           <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-3 gap-2">
-          {piMessages.presets.map((message, index) => <button key={index} type="button" disabled={status !== "connected"}
+          {(mode === "dj" ? djSettings.messages : piMessages.presets).map((message, index) => <button key={index} type="button" disabled={status !== "connected"}
             onPointerDown={() => startHold(index)} onPointerUp={stopHold} onPointerCancel={stopHold} onPointerLeave={stopHold}
-            onClick={() => { if (heldPreset.current === index) { heldPreset.current = null; return; } if (message) send(message); }}
+            onClick={() => { if (heldPreset.current === index) { heldPreset.current = null; return; } if (message) { if (mode === "dj") sendMessage({ type: "send-dj-message", data: { index } }); else send(message); } }}
             className={`min-h-0 touch-none rounded-xl border p-2 text-base font-semibold ${message ? "border-blue-600 bg-blue-950" : "border-gray-700 bg-gray-800 text-gray-400"} disabled:opacity-50`}>{message || "[empty]"}</button>)}
           </div>
         </section>
