@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { validatePiMessagesState } from "./pi-messages";
 
 describe("Pi message storage", () => {
+  it("preserves group destinations when loading saved conversation history", () => {
+    const item = { id: "group-1", direction: "sent", text: "Hello team", timestamp: "2026-09-27T12:00:00Z", recipient: "group", sender: "qboard" };
+    expect(validatePiMessagesState({ history: [item] }).history).toEqual([item]);
+  });
   it("preserves empty slots and custom messages in all six slots", () => {
     const presets = ["You are too loud", "You are too quiet", "", "Hello", "", "Thanks"];
     expect(validatePiMessagesState({ presets, history: [] }).presets).toEqual(presets);
@@ -13,6 +17,8 @@ describe("Pi message storage", () => {
     }));
     const state = validatePiMessagesState({ presets: ["Custom one", "Custom two"], history });
     expect(state.presets).toEqual(["Custom one", "Custom two", "", "", "", ""]);
+    expect(state.outgoingPresets?.dj).toEqual(state.presets);
+    expect(state.outgoingPresets?.group[0]).toBe("Ready");
     expect(state.history).toHaveLength(200);
     expect(state.history[0].id).toBe("5");
     expect(state.history[199].direction).toBe("sent");

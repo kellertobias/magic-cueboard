@@ -10,9 +10,12 @@ export type SPLSettings = {
   messages: string[];
 };
 
+export const splThresholdRange = { min: 60, max: 105 } as const;
+
+// Operational disco alerts for A-weighted Slow readings at the measurement position.
 export const defaultSPLSettings: SPLSettings = {
-  average: { green: 70, yellow: 80, red: 93 },
-  peak: { green: 70, yellow: 80, red: 93 },
+  average: { green: 85, yellow: 93, red: 96 },
+  peak: { green: 90, yellow: 100, red: 105 },
   averageSeconds: 24,
   peakSeconds: 1,
   redBlinkSeconds: 5,

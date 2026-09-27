@@ -47,3 +47,24 @@ describe("DJ preset editing", () => {
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 });
+
+describe("Cueboard outgoing preset banks", () => {
+  it("persists each destination independently without changing DJ-owned messages", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "pi-preset-banks-"));
+    try {
+      const runtime = Object.create(WebSocketService.prototype);
+      runtime.piMessagesPath = join(directory, "pi.json");
+      runtime.piMessages = { presets: ["Old Pi message", "", "", "", "", ""], history: [] };
+      runtime.splSettings = structuredClone(defaultSPLSettings);
+      runtime.broadcast = () => {};
+      const replies: any[] = [];
+      const ws = { send: (text: string) => replies.push(JSON.parse(text)) };
+      for (const recipient of ["dj", "group"]) await runtime.handleWebSocketMessage(ws, JSON.stringify({ type: "set-pi-preset", data: { recipient, index: 0, text: `To ${recipient}` } }));
+      const saved = JSON.parse(readFileSync(runtime.piMessagesPath, "utf8"));
+      expect(saved.outgoingPresets.dj[0]).toBe("To dj");
+      expect(saved.outgoingPresets.group[0]).toBe("To group");
+      expect(runtime.splSettings).toEqual(defaultSPLSettings);
+      expect(replies.map(item => item.type)).toEqual(["pi-preset-saved", "pi-preset-saved"]);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  });
+});

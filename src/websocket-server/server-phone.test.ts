@@ -14,7 +14,7 @@ function setup() {
 }
 
 describe("phone chat routing", () => {
-  it.each(["technician", "dj"])("records and notifies the technician about messages addressed to %s", async recipient => {
+  it.each(["technician", "dj", "group"])("records and notifies the technician about messages addressed to %s", async recipient => {
     const { runtime, ws, replies } = setup();
     await runtime.handleWebSocketMessage(ws, JSON.stringify({ type: "send-phone-message", data: { text: " Hello ", recipient } }));
     expect(runtime.piMessages.history).toHaveLength(1);
@@ -51,5 +51,31 @@ describe("clock protocol", () => {
     await runtime.handleWebSocketMessage(ws, JSON.stringify({ type: "set-clock", data: { timestamp: state.timestamp, source: "manual" } }));
     expect(replies.pop()).toEqual({ type: "clock-error", data: { message: "Permission denied" } });
     expect(runtime.broadcast).not.toHaveBeenCalled();
+  });
+});
+
+describe("Cueboard destination routing", () => {
+  it.each(["dj", "group", undefined])("routes messages to %s and records the destination", async recipient => {
+    const { runtime, ws, replies } = setup();
+    await runtime.handleWebSocketMessage(ws, JSON.stringify({ type: "send-pi-message", data: { text: " Hello ", recipient } }));
+    expect(runtime.piMessages.history[0]).toMatchObject({ text: "Hello", sender: "qboard", recipient: recipient ?? "dj" });
+    expect(runtime.broadcast).toHaveBeenCalledWith({ type: "pi-messages-state", data: runtime.piMessages });
+    if (recipient === "group") expect(runtime.mqttBroker.publishText).not.toHaveBeenCalled();
+    else expect(runtime.mqttBroker.publishText.mock.calls).toEqual([["dj/messages", "Hello"], ["tosklight/dj/display-inbox", "Hello"]]);
+    expect(replies).toEqual([{ type: "pi-message-sent" }]);
+  });
+  it("rejects unknown destinations without sending anything", async () => {
+    const { runtime, ws, replies } = setup();
+    await runtime.handleWebSocketMessage(ws, JSON.stringify({ type: "send-pi-message", data: { text: "Hello", recipient: "private-phone" } }));
+    expect(runtime.mqttBroker.publishText).not.toHaveBeenCalled();
+    expect(runtime.piMessages.history).toHaveLength(0);
+    expect(replies[0].type).toBe("pi-message-error");
+  });
+  it("records DJ preset destinations and acknowledges the send", async () => {
+    const { runtime, ws, replies } = setup();
+    runtime.splSettings.messages = ["Hello DJ"];
+    await runtime.handleWebSocketMessage(ws, JSON.stringify({ type: "send-dj-message", data: { index: 0 } }));
+    expect(runtime.piMessages.history[0]).toMatchObject({ text: "Hello DJ", recipient: "dj", sender: "qboard" });
+    expect(replies).toEqual([{ type: "pi-message-sent" }]);
   });
 });

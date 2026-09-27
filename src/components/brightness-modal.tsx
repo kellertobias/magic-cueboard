@@ -21,8 +21,8 @@ export function BrightnessModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-900 p-6 rounded-lg shadow-xl w-[400px]">
+    <div className="cueboard-settings-subpage">
+      <div className="w-full">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-white">
             Button Brightness
@@ -30,13 +30,13 @@ export function BrightnessModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-white -m-4 p-4"
+            className="cueboard-home-button" aria-label="Back to settings"
           >
             ✕
           </button>
         </div>
 
-        <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-8">
           <div>
             <label
               htmlFor="inactive-brightness"
@@ -54,7 +54,7 @@ export function BrightnessModal({
                 const value = Number.parseInt(e.target.value);
                 onBrightnessChange(value, activePercentage);
               }}
-              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+              className="w-full h-8 accent-blue-400 cursor-pointer"
             />
             <div className="text-xs text-gray-400">{inactivePercentage}%</div>
           </div>
@@ -76,7 +76,7 @@ export function BrightnessModal({
                 const value = Number.parseInt(e.target.value);
                 onBrightnessChange(inactivePercentage, value);
               }}
-              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+              className="w-full h-8 accent-blue-400 cursor-pointer"
             />
             <div className="text-xs text-gray-400">{activePercentage}%</div>
           </div>

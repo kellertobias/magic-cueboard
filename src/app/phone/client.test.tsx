@@ -3,12 +3,15 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocketContext } from "@/contexts/WebSocketContext";
+import { PHONE_PRESETS_STORAGE_KEY } from "@/lib/pi-messages";
 import { PhoneChat } from "./client";
 
 describe("phone chat", () => {
   afterEach(() => vi.unstubAllGlobals());
   it("syncs on connection, sends to the selected recipient, and keeps the draft until acknowledged", () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) });
     const listeners = new Set<(message: any) => void>();
     const sendMessage = vi.fn();
     const context = {
@@ -21,13 +24,27 @@ describe("phone chat", () => {
       },
     };
     const container = document.createElement("div");
-    const root = createRoot(container);
+    let root = createRoot(container);
     const render = () => act(() => root.render(<WebSocketContext.Provider value={{ ...context }}><PhoneChat /></WebSocketContext.Provider>));
     const receive = (type: string, data?: unknown) => act(() => listeners.forEach(listener => listener({ type, data })));
     try {
       render();
+      const click = (text: string) => act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === text)!.click());
+      click("Edit saved messages");
+      const preset = container.querySelector<HTMLInputElement>('input[aria-label="Saved message 1"]')!;
+      act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(preset, "My phone preset");
+        preset.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      const beforeSave = sendMessage.mock.calls.length;
+      click("Save on this phone");
+      expect(sendMessage.mock.calls.length).toBe(beforeSave);
+      expect(JSON.parse(storage.get(PHONE_PRESETS_STORAGE_KEY)!).group[0]).toBe("My phone preset");
+      click("My phone preset");
+      expect(container.querySelector("textarea")!.value).toBe("My phone preset");
+      expect(sendMessage.mock.calls.length).toBe(beforeSave);
       expect(sendMessage).toHaveBeenCalledWith({ type: "set-clock", data: { timestamp: expect.any(Number), source: "phone" } });
-      expect(container.querySelector<HTMLInputElement>('input[value="technician"]')!.checked).toBe(true);
+      expect(container.querySelector<HTMLInputElement>('input[value="group"]')!.checked).toBe(true);
       act(() => container.querySelector<HTMLInputElement>('input[value="dj"]')!.click());
       const textarea = container.querySelector("textarea")!;
       act(() => {
@@ -50,6 +67,13 @@ describe("phone chat", () => {
       context.status = "connected";
       render();
       expect(sendMessage.mock.calls.filter(([message]) => message.type === "set-clock")).toHaveLength(2);
+      act(() => root.unmount());
+      root = createRoot(container);
+      render();
+      expect(container.textContent).toContain("My phone preset");
+      act(() => container.querySelector<HTMLInputElement>('input[value="dj"]')!.click());
+      expect(container.textContent).toContain("Audio problem");
+      expect(container.textContent).not.toContain("My phone preset");
     } finally { act(() => root.unmount()); }
   });
 });

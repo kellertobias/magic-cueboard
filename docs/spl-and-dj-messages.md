@@ -23,3 +23,9 @@ On the Qboard, an incoming message blinks the **Messages** button for 15 minutes
 The Messages screen switches between **Technician** presets (Pi-local) and **DJ** presets (the six buttons on the DJ controller). The active set is bold. Type with the same keyboard and hold a slot to replace its message. DJ changes are saved with the SPL configuration and immediately published as retained MQTT preset labels; technician changes remain separate.
 
 The SPL threshold scale is 50–110 dB. Threshold handles have 44-pixel touch targets. Save is disabled until settings change, then shows Saving while waiting for the server and Saved after a successful disk write. DJ and Technician preset saves also receive server-confirmed feedback. DJ presets use light blue, Technician presets use dark blue. App controls disable browser text selection.
+
+## Disco alert defaults
+
+The SPL settings threshold controls span 60–105 dBA, with 5 dB scale labels. The home graph remains 50–110 dBA. Average defaults are green 85, yellow 93, red 96; held-maximum defaults are green 90, yellow 100, red 105. The existing 24-second averaging, 1-second maximum hold, and 5-second red blink delay remain unchanged.
+
+These are operational alert thresholds for dBA Slow input at the microphone position, without a distance correction. The displayed average of Slow samples is not LAeq,15min, and the held maximum is not acoustic peak pressure. They do not establish an audience exposure limit. Previously saved thresholds remain in place until edited.

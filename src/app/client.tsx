@@ -52,13 +52,10 @@ export default function Home() {
           <div className="col-span-5 h-[320px]">
             <ExecutorGrid />
           </div>
+          <OptionsModal isOpen={isOptionsOpen} onClose={() => setIsOptionsOpen(false)} />
           <DJMessages open={isMessagesOpen} onClose={() => setIsMessagesOpen(false)} />
         </main>
 
-        <OptionsModal
-          isOpen={isOptionsOpen}
-          onClose={() => setIsOptionsOpen(false)}
-        />
       </div>
     </WebSocketProvider>
   );

@@ -671,8 +671,8 @@ export class WebSocketService {
           const index = message.data?.index;
           const text = message.data?.text;
           try {
-            if (!Number.isInteger(index) || index < 0 || index >= 6 || typeof text !== "string" || !text.trim() || text.trim().length > 160) {
-              throw new Error("Enter a message of up to 160 characters before holding a preset.");
+            if (!Number.isInteger(index) || index < 0 || index >= 6 || typeof text !== "string" || text.trim().length > 160) {
+              throw new Error("Enter a preset of up to 160 characters.");
             }
             const settings = { ...this.splSettings, messages: this.splSettings.messages.map((item, i) => i === index ? text.trim() : item) };
             writeFileSync(this.splSettingsPath, JSON.stringify(settings, null, 2));
@@ -701,15 +701,16 @@ export class WebSocketService {
           }
           this.mqttBroker.publishText(this.splSettings.messageTopic, text.trim());
           this.mqttBroker.publishText("tosklight/dj/display-inbox", text.trim());
-          this.appendPiMessage("sent", text.trim());
+          this.appendPiMessage("sent", text.trim(), { sender: "qboard", recipient: "dj" });
+          ws.send(JSON.stringify({ type: "pi-message-sent" }));
           break;
         }
 
         case "send-phone-message": {
           const text = message.data?.text;
           const recipient = message.data?.recipient;
-          if (typeof text !== "string" || !text.trim() || text.trim().length > 160 || (recipient !== "dj" && recipient !== "technician")) {
-            ws.send(JSON.stringify({ type: "phone-message-error", data: { message: "Choose DJ or Technician and enter up to 160 characters." } }));
+          if (typeof text !== "string" || !text.trim() || text.trim().length > 160 || (recipient !== "dj" && recipient !== "technician" && recipient !== "group")) {
+            ws.send(JSON.stringify({ type: "phone-message-error", data: { message: "Choose DJ display or Group chat and enter up to 160 characters." } }));
             break;
           }
           this.appendPiMessage("received", text.trim(), { sender: "phone", recipient });
@@ -724,13 +725,17 @@ export class WebSocketService {
 
         case "send-pi-message": {
           const text = message.data?.text;
-          if (typeof text !== "string" || !text.trim() || text.trim().length > 160) {
-            ws.send(JSON.stringify({ type: "pi-message-error", data: { message: "Enter a message of up to 160 characters." } }));
+          // Older Cueboards did not specify a destination and always sent to DJ.
+          const recipient = message.data?.recipient ?? "dj";
+          if (typeof text !== "string" || !text.trim() || text.trim().length > 160 || (recipient !== "dj" && recipient !== "group")) {
+            ws.send(JSON.stringify({ type: "pi-message-error", data: { message: "Choose DJ display or Group chat and enter up to 160 characters." } }));
             break;
           }
-          this.mqttBroker.publishText(this.splSettings.messageTopic, text.trim());
-          this.mqttBroker.publishText("tosklight/dj/display-inbox", text.trim());
-          this.appendPiMessage("sent", text.trim());
+          if (recipient === "dj") {
+            this.mqttBroker.publishText(this.splSettings.messageTopic, text.trim());
+            this.mqttBroker.publishText("tosklight/dj/display-inbox", text.trim());
+          }
+          this.appendPiMessage("sent", text.trim(), { sender: "qboard", recipient });
           ws.send(JSON.stringify({ type: "pi-message-sent" }));
           break;
         }
@@ -738,12 +743,16 @@ export class WebSocketService {
         case "set-pi-preset": {
           const index = message.data?.index;
           const text = message.data?.text;
-          if ((!Number.isInteger(index) || index < 0 || index >= 6) || typeof text !== "string" || !text.trim() || text.trim().length > 160) {
-            ws.send(JSON.stringify({ type: "pi-message-error", data: { message: "Enter a message of up to 160 characters before holding a preset." } }));
+          if ((!Number.isInteger(index) || index < 0 || index >= 6) || typeof text !== "string" || text.trim().length > 160) {
+            ws.send(JSON.stringify({ type: "pi-message-error", data: { message: "Enter a preset of up to 160 characters." } }));
             break;
           }
           try {
-            const next = { ...this.piMessages, presets: this.piMessages.presets.map((item, i) => i === index ? text.trim() : item) };
+            const recipient: "dj" | "group" | undefined = message.data?.recipient;
+            if (recipient !== undefined && recipient !== "dj" && recipient !== "group") throw new Error("Choose a preset destination.");
+            const current = validatePiMessagesState(this.piMessages);
+            const next = recipient ? { ...current, outgoingPresets: { ...current.outgoingPresets!, [recipient]: current.outgoingPresets![recipient].map((item: string, i: number) => i === index ? text.trim() : item) } }
+              : { ...current, presets: current.presets.map((item, i) => i === index ? text.trim() : item), outgoingPresets: { ...current.outgoingPresets!, dj: current.presets.map((item, i) => i === index ? text.trim() : item) } };
             writeFileSync(this.piMessagesPath, JSON.stringify(next, null, 2));
             this.piMessages = next;
             this.broadcast({ type: "pi-messages-state", data: this.piMessages });
@@ -1293,7 +1302,7 @@ export class WebSocketService {
     try {
       if (existsSync(this.piMessagesPath)) return validatePiMessagesState(JSON.parse(readFileSync(this.piMessagesPath, "utf-8")));
     } catch (error) { console.warn("Cannot load Pi messages:", error); }
-    return { presets: [...defaultPiMessagesState.presets], history: [] };
+    return validatePiMessagesState(defaultPiMessagesState);
   }
 
   private savePiMessages(): void {

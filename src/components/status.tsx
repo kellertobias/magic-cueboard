@@ -18,7 +18,7 @@ interface SystemMetrics {
 const percent = (value: number | null) => value === null ? "—" : `${Math.round(value)}%`;
 const gib = (bytes: number) => (bytes / 1073741824).toFixed(1);
 
-export function ConnectionStatus({ actions }: { actions?: ReactNode }) {
+export function ConnectionStatus({ actions, deviceInfo }: { actions?: ReactNode; deviceInfo?: ReactNode }) {
   const [activeSource, setActiveSource] = useState<"idle" | "magicq" | "tosklight">("idle");
   const [hardware, setHardware] = useState<{ status: "connecting" | "connected"; transport: "local" | "remote" | null; detail: string }>({ status: "connecting", transport: null, detail: "Looking for Cueboard hardware…" });
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
@@ -61,7 +61,7 @@ export function ConnectionStatus({ actions }: { actions?: ReactNode }) {
           </div>
         </div>
       </div>
-      <div className="cueboard-metrics" aria-label="Windows system metrics">
+      {deviceInfo ? <div className="cueboard-device-info">{deviceInfo}</div> : <div className="cueboard-metrics" aria-label="Windows system metrics">
         <Metric label="CPU P95 · 5s" value={percent(current?.cpuP95Percent ?? null)}>
           <svg width="72" height="16" viewBox="0 0 72 16" aria-hidden="true" className="cueboard-cpu-history">
             {points && <polyline points={points} fill="none" stroke="#22c55e" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />}
@@ -70,7 +70,7 @@ export function ConnectionStatus({ actions }: { actions?: ReactNode }) {
         <Metric label="RAM · GiB" value={current ? gib(current.ramUsedBytes) : "—"} detail={current ? ` / ${gib(current.ramTotalBytes)}` : undefined} />
         <Metric label="GPU" value={percent(current?.gpuPercent ?? null)} />
         <Metric label="Temp" value={current?.temperatureC == null ? "—" : `${Math.round(current.temperatureC)}°C`} />
-      </div>
+      </div>}
     </div>
   );
 }

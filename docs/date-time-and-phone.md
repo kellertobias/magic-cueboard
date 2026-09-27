@@ -15,3 +15,24 @@ An error is shown if system time cannot be set. A failed RTC write reports that 
 The hardware write follows the documented [`hwclock --systohc` behavior](https://man7.org/linux/man-pages/man8/hwclock.8.html).
 
 This uses the existing trusted local-network connection model; anyone able to connect to the Qboard can use phone chat and time synchronization. No production clock or RTC was changed during development. Automated tests mock privileged clock commands.
+
+## Sidebar navigation and message destinations
+
+Settings now occupies the Cueboard strip with a left navigation sidebar (Controls, SPL limits, Date and time, System), keeping connection and device information visible. Back home returns to the executor screen.
+
+Messages keeps Back home in a separate navigation area above destination selection and presets. Both typed messages and presets follow the selected destination:
+
+- DJ display publishes to the configured DJ MQTT topic and display inbox, and appears in shared history.
+- Group chat broadcasts shared history to connected mobile remotes without publishing to the DJ display. This is a shared conversation, not private messaging.
+
+Messages carry destination metadata, preserved in stored history and shown on both Cueboard and phones. Legacy clients without a Cueboard destination retain their previous DJ routing; the technician destination from older phones remains supported. Update/restart the WebSocket server together with the UI to activate the new group routing.
+
+## Independent saved messages
+
+The Cueboard stores separate outgoing DJ and group-chat preset banks in pi-messages.json. These never reuse or edit the DJ-owned SPL-display presets. Existing Pi presets migrate to its outgoing DJ bank; group chat receives its own starter set.
+
+Phones receive separate starter sets for DJ and group chat. Edit saved messages saves both banks under light-assistant.phone-presets.v1 in that browser's local storage. A preset tap fills the composer; Send explicitly delivers it. Phone edits are never sent to the Cueboard or other phones. Clearing browser storage restores starters.
+
+Settings shows device IP and current show in the sidebar instead of CPU metrics. The former Device tab is now SPL limits and uses the same average/peak thresholds and time-window editor as the home sound-level panel.
+
+Controls uses source tabs at the top; selecting ToskLight removes MagicQ reload. Button brightness is on System. Messages provides explicit Edit presets (Pi outgoing presets for the selected destination) and DJ replies (messages sent from the DJ device). Select a slot, edit using the on-screen keyboard, and Save preset. Saving never sends a chat message; empty text clears a slot.

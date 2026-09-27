@@ -6,6 +6,8 @@ import { btnBaseClasses } from "@/components/button";
 import type { WSMessage } from "@/components/executor-grid";
 import { BrightnessModal } from "@/components/brightness-modal";
 import { TerminalModal } from "@/components/terminal-modal";
+import { SPLMeter } from "@/components/spl-meter";
+import { ConnectionStatus } from "@/components/status";
 import { DateTimeSettings } from "@/components/date-time-settings";
 
 interface OptionsModalProps {
@@ -72,8 +74,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
     hasError: boolean;
   } | null>(null);
   const [isBrightnessModalOpen, setIsBrightnessModalOpen] = useState(false);
-  const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
-  const [settingsPage, setSettingsPage] = useState<"device" | "controls" | "system" | "time">("controls");
+  const [settingsPage, setSettingsPage] = useState<"spl" | "controls" | "system" | "time">("controls");
   const [isTerminalModalOpen, setIsTerminalModalOpen] = useState(false);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -168,7 +169,8 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
 
   useEffect(() => {
     if (!isOpen) {
-      setIsSourceModalOpen(false);
+      setIsBrightnessModalOpen(false);
+      setIsTerminalModalOpen(false);
       setSettingsPage("controls");
     }
   }, [isOpen]);
@@ -177,99 +179,59 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
 
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-gray-900 p-4 rounded-lg shadow-xl w-[600px] max-w-[calc(100vw-16px)] max-h-[calc(100vh-16px)] overflow-y-auto">
-          <div className="flex justify-between items-center mb-2">
-            <h2 className="text-lg font-semibold text-white">Settings</h2>
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-gray-400 hover:text-white -m-4 p-4"
-            >
-              ✕
-            </button>
-          </div>
-
-          <div className="grid grid-cols-4 gap-2 mb-3" role="tablist" aria-label="Settings sections">
-            {([['device', 'Device'], ['controls', 'Controls'], ['system', 'System'], ['time', 'Date and time']] as const).map(([page, label]) => (
-              <button key={page} type="button" role="tab" aria-selected={settingsPage === page} onClick={() => setSettingsPage(page)} className={clsx(btnBaseClasses, "min-h-9 py-1", settingsPage === page ? "border-cyan-400 text-white" : "border-gray-700 text-gray-400")}>
-                {label}
+      <div className="cueboard-settings" role="dialog" aria-modal="true" aria-label="Settings">
+        <aside className="cueboard-settings-sidebar">
+          <ConnectionStatus deviceInfo={<><div><span>Device IP</span><strong>{ipAddress || "Waiting for device…"}</strong></div><div><span>Current show</span><strong title={showName}>{showName}</strong></div></>} actions={<button type="button" onClick={onClose} className="cueboard-home-button">← Back home</button>} />
+          <div className="cueboard-settings-tabs" role="tablist" aria-label="Settings sections" aria-orientation="vertical">
+            {([['controls', 'Controls', 'Source and executor layout'], ['spl', 'SPL limits', 'Thresholds and averaging'], ['time', 'Date and time', 'Device clock'], ['system', 'System', 'Brightness, updates and restart']] as const).map(([page, label, detail]) => (
+              <button key={page} id={`settings-tab-${page}`} type="button" role="tab" aria-controls={`settings-panel-${page}`} aria-selected={settingsPage === page} tabIndex={settingsPage === page ? 0 : -1}
+                onKeyDown={event => {
+                  const pages = ['controls', 'spl', 'time', 'system'] as const;
+                  const index = pages.indexOf(page);
+                  const next = event.key === 'ArrowDown' ? (index + 1) % 4 : event.key === 'ArrowUp' ? (index + 3) % 4 : event.key === 'Home' ? 0 : event.key === 'End' ? 3 : null;
+                  if (next === null) return;
+                  event.preventDefault(); setSettingsPage(pages[next]); setIsBrightnessModalOpen(false); document.getElementById(`settings-tab-${pages[next]}`)?.focus();
+                }}
+                onClick={() => { setSettingsPage(page); setIsBrightnessModalOpen(false); }} className="cueboard-settings-tab">
+                <span>{label}</span><span>{detail}</span>
               </button>
             ))}
           </div>
-          <div>
+        </aside>
+        <section className="cueboard-settings-content" role="tabpanel" id={`settings-panel-${settingsPage}`} aria-labelledby={`settings-tab-${settingsPage}`}>
+          {settingsPage !== "spl" && <header className="cueboard-page-heading"><span>Settings</span><h2>{settingsPage === 'time' ? 'Date and time' : settingsPage === 'controls' ? 'Controls' : 'System'}</h2></header>}
+          <div className="cueboard-settings-body">
             {settingsPage === "time" && <DateTimeSettings />}
-            {/* Left column - Device Info */}
-            <div className={settingsPage === "device" ? "block" : "hidden"}>
-              <h3 className="text-sm font-medium text-gray-400 mb-2">
-                Device Information
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <h4 className="text-sm font-medium text-gray-400 mb-1">
-                    Device IP
-                  </h4>
-                  <p className="text-white">{ipAddress}</p>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium text-gray-400 mb-1">
-                    Current Show
-                  </h4>
-                  <p className="text-white font-mono text-sm">{showName}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Middle column - MagicQ Controls */}
+            {settingsPage === "spl" && <SPLMeter settingsOnly />}
             <div className={settingsPage === "controls" ? "block" : "hidden"}>
-              <h3 className="text-sm font-medium text-gray-400 mb-2">
-                MagicQ Controls
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  className={clsx(
-                    btnBaseClasses,
-                    "border-gray-600 text-gray-300 w-full"
-                  )}
-                  onClick={() => {
-                    setReloading(true);
-                    sendMessage({ type: "reload-executors" });
-                  }}
-                >
-                  {reloading ? "Reloading..." : "Reload from MagicQ"}
-                </button>
-
-                <button
-                  type="button"
-                  className={clsx(
-                    btnBaseClasses,
-                    "border-gray-600 text-gray-300 w-full"
-                  )}
-                  onClick={() => setIsBrightnessModalOpen(true)}
-                >
-                  Button Brightness
-                </button>
-                <div className="grid grid-cols-2 gap-1" aria-label="Executor layout mode">
-                  {(["legacy", "new"] as const).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      className={clsx(btnBaseClasses, "text-xs", layoutMode === mode ? "border-white text-white" : "border-gray-700 text-gray-500")}
-                      onClick={() => sendMessage({ type: "set-layout", data: { mode } })}
-                    >
-                      {mode === "legacy" ? "Legacy" : "New"}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  aria-label="Choose show data source"
-                  className={clsx(btnBaseClasses, "border-gray-600 text-gray-300 w-full text-xs")}
-                  onClick={() => setIsSourceModalOpen(true)}
-                >
-                  Source: {sourceChoices.find((choice) => choice.value === surfaceSource)?.label}
-                </button>
+              <div className="cueboard-source-tabs" role="tablist" aria-label="Show data source">
+                {sourceChoices.map((choice, index) => <button key={choice.value} id={`source-tab-${choice.value}`} type="button" role="tab" aria-selected={surfaceSource === choice.value} aria-controls="source-controls-panel" tabIndex={surfaceSource === choice.value ? 0 : -1}
+                  onClick={() => { sendMessage({ type: "set-source", data: { source: choice.value } }); setSurfaceSource(choice.value); }}
+                  onKeyDown={event => {
+                    const next = event.key === "ArrowRight" ? (index + 1) % 4 : event.key === "ArrowLeft" ? (index + 3) % 4 : event.key === "Home" ? 0 : event.key === "End" ? 3 : null;
+                    if (next === null) return;
+                    event.preventDefault();
+                    document.getElementById(`source-tab-${sourceChoices[next].value}`)?.focus();
+                  }}>
+                  {choice.label}
+                </button>)}
+              </div>
+              <div id="source-controls-panel" role="tabpanel" aria-labelledby={`source-tab-${surfaceSource}`} className="grid grid-cols-2 gap-6 pt-5">
+                <section>
+                  <h3 className="cueboard-section-label mb-2">Executor layout</h3>
+                  <div className="grid grid-cols-2 gap-2" aria-label="Executor layout mode">
+                    {(["legacy", "new"] as const).map(mode => <button key={mode} type="button" aria-pressed={layoutMode === mode}
+                      className={clsx(btnBaseClasses, "text-xs", layoutMode === mode ? "border-blue-400 text-white bg-slate-800" : "border-gray-700 text-gray-400")}
+                      onClick={() => sendMessage({ type: "set-layout", data: { mode } })}>{mode === "legacy" ? "Legacy" : "New"}</button>)}
+                  </div>
+                </section>
+                {surfaceSource !== "tosklight" && <section>
+                  <h3 className="cueboard-section-label mb-2">MagicQ show data</h3>
+                  <button type="button" className={clsx(btnBaseClasses, "border-gray-600 text-gray-300 w-full")} disabled={reloading}
+                    onClick={() => { setReloading(true); sendMessage({ type: "reload-executors" }); }}>
+                    {reloading ? "Reloading..." : "Reload from MagicQ"}
+                  </button>
+                </section>}
               </div>
             </div>
 
@@ -278,7 +240,8 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
               <h3 className="text-sm font-medium text-gray-400 mb-2">
                 System Controls
               </h3>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-3">
+                <button type="button" className={clsx(btnBaseClasses, "border-gray-600 text-gray-300 w-full")} onClick={() => setIsBrightnessModalOpen(true)}>Button Brightness</button>
                 <button
                   type="button"
                   className={clsx(
@@ -314,38 +277,8 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
               </div>
             </div>
           </div>
-        </div>
+        </section>
       </div>
-
-      {isSourceModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[60]">
-          <div className="bg-gray-900 p-4 rounded-lg shadow-xl w-[600px] max-w-[95vw] max-h-[300px]">
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-lg font-semibold text-white">Show data source</h2>
-              <button type="button" onClick={() => setIsSourceModalOpen(false)} className="text-gray-300 hover:text-white px-3 py-1" aria-label="Back to settings">
-                Back ✕
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Show data source">
-              {sourceChoices.map((choice) => (
-                <button
-                  key={choice.value}
-                  type="button"
-                  aria-pressed={surfaceSource === choice.value}
-                  className={clsx(btnBaseClasses, "min-h-16 px-3 text-sm", surfaceSource === choice.value ? "border-cyan-400 text-white bg-gray-800" : "border-gray-600 text-gray-300")}
-                  onClick={() => {
-                    sendMessage({ type: "set-source", data: { source: choice.value } });
-                    setSurfaceSource(choice.value);
-                    setIsSourceModalOpen(false);
-                  }}
-                >
-                  {choice.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       <TerminalModal
         isOpen={isTerminalModalOpen}
