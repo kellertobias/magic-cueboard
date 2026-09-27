@@ -3,6 +3,8 @@ export type PiMessage = {
   direction: "sent" | "received";
   text: string;
   timestamp: string;
+  recipient?: "dj" | "technician";
+  sender?: "phone" | "qboard" | "dj";
 };
 
 export type PiMessagesState = {
@@ -29,6 +31,10 @@ export function validatePiMessagesState(value: unknown): PiMessagesState {
     (item.direction === "sent" || item.direction === "received") &&
     typeof item.text === "string" && item.text.length <= 500 &&
     typeof item.timestamp === "string" && !Number.isNaN(Date.parse(item.timestamp))
-  ).slice(-200) : [];
+  ).slice(-200).map(item => ({
+    id: item.id, direction: item.direction, text: item.text, timestamp: item.timestamp,
+    ...(item.recipient === "dj" || item.recipient === "technician" ? { recipient: item.recipient } : {}),
+    ...(item.sender === "phone" || item.sender === "qboard" || item.sender === "dj" ? { sender: item.sender } : {}),
+  })) : [];
   return { presets, history };
 }

@@ -1,14 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSystemClock } from "@/hooks/useSystemClock";
 
 export function Clock() {
-  const [time, setTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const { time, timeZone } = useSystemClock();
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString("de-DE", {
@@ -16,15 +11,7 @@ export function Clock() {
       minute: "2-digit",
       second: "2-digit",
       hour12: false,
-    });
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("de-DE", {
-      //   weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
+      timeZone,
     });
   };
 
@@ -45,19 +32,21 @@ export function Clock() {
             fontSize="48"
             fill="currentColor"
           >
-            {formatTime(time)}
+            {time ? formatTime(time) : "--:--:--"}
           </text>
         </svg>
       </div>
       <div className="pl-2 text-gray-500">
-        {time.toLocaleDateString("en-US", {
+        {time?.toLocaleDateString("en-US", {
           weekday: "long",
+          timeZone,
         })}
         <br />
-        {time.toLocaleDateString("de-DE", {
+        {time?.toLocaleDateString("de-DE", {
           year: "2-digit",
           month: "2-digit",
           day: "2-digit",
+          timeZone,
         })}
       </div>
     </div>

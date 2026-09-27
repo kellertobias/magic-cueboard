@@ -44,7 +44,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const connect = React.useCallback(() => {
     try {
       console.log("Connecting to WebSocket");
-      const ws = new WebSocket(`ws://${window.location.host}/ws`);
+      const ws = new WebSocket(`${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`);
       wsRef.current = ws;
 
       ws.onopen = () => {

@@ -52,3 +52,4 @@ __pycache__/**/*
 .esphome/**/*
 hardware/dj-spl-meter/.esphome/
 hardware/dj-spl-meter/custom_components/websocket/__pycache__/
+.repoinfo

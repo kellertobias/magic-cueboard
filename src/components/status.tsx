@@ -1,7 +1,7 @@
 "use client";
 
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { systemMetricsAreFresh } from "@/lib/system-metrics";
 
 interface SystemMetrics {
@@ -18,12 +18,16 @@ interface SystemMetrics {
 const percent = (value: number | null) => value === null ? "—" : `${Math.round(value)}%`;
 const gib = (bytes: number) => (bytes / 1073741824).toFixed(1);
 
-export function ConnectionStatus() {
+export function ConnectionStatus({ actions }: { actions?: ReactNode }) {
+  const [activeSource, setActiveSource] = useState<"idle" | "magicq" | "tosklight">("idle");
+  const [hardware, setHardware] = useState<{ status: "connecting" | "connected"; transport: "local" | "remote" | null; detail: string }>({ status: "connecting", transport: null, detail: "Looking for Cueboard hardware…" });
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
   const [now, setNow] = useState(0);
   const receivedAt = useRef<number | null>(null);
   const [windowsConnected, setWindowsConnected] = useState<boolean | null>(null);
   const { status, disconnectedSince, sendMessage } = useWebSocket((message) => {
+    if (message.type === "source-values") setActiveSource(message.data.activeSource);
+    if (message.type === "hardware-connection") setHardware(message.data);
     if (message.type === "system-metrics") { receivedAt.current = performance.now(); setNow(performance.now()); setMetrics(message.data ?? null); }
     if (message.type === "system-connection") setWindowsConnected(Boolean(message.data?.connected));
   });
@@ -45,9 +49,12 @@ export function ConnectionStatus() {
 
   return (
     <div className="w-full px-3 text-white">
-      <div className="flex items-center justify-between h-5">
-        <span className="text-[10px] uppercase tracking-[0.15em] text-gray-400">Windows system</span>
-        <div className="flex items-center gap-1.5 text-[11px] text-gray-300">
+      <div className="flex items-center gap-2 min-h-8">
+        {actions}
+        <span className={`text-[10px] uppercase tracking-wide ${activeSource === "tosklight" ? "text-teal-300" : activeSource === "magicq" ? "text-blue-300" : "text-amber-300"}`} title={hardware.detail}>
+          {activeSource === "tosklight" ? "ToskLight" : activeSource === "magicq" ? "MagicQ" : "Waiting"} · {hardware.status === "connecting" ? "Cueboard reconnecting" : hardware.transport === "local" ? "Pi Cueboard" : "Windows Cueboard"}
+        </span>
+        <div className="flex items-center ml-auto shrink-0 gap-1.5 text-[11px] text-gray-300">
           <span className={`w-2 h-2 rounded-full ${current ? "bg-green-500 shadow-[0_0_5px_#22c55e]" : "bg-red-500"}`} />
           {status !== "connected" ? `Pi disconnected${disconnectedSeconds >= 3 ? ` (${disconnectedSeconds}s)` : ""}` : current ? "Connected" : windowsConnected === false ? "Windows reconnecting" : "Waiting for Windows data"}
         </div>

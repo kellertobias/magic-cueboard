@@ -19,6 +19,8 @@ import { OptimisticButtons } from "./services/optimistic-buttons";
 import { defaultSPLSettings, validateSPLSettings, type SPLSettings } from "../lib/spl-settings";
 import { defaultPiMessagesState, validatePiMessagesState, type PiMessage, type PiMessagesState } from "../lib/pi-messages";
 import { SPLStateCalculator, type SPLState } from "./services/spl-state";
+import { SystemClockService } from "./services/system-clock";
+import { networkInterfaces } from "node:os";
 
 export class WebSocketService {
   private wss: WebSocketServer;
@@ -75,6 +77,7 @@ export class WebSocketService {
   private heldPhysicalButtons = new Map<number, { source: "self" | "windows" | "tosklight"; type: "toggle" | "flash" | "solo" | "fader" | "other" }>();
   private ignoredPhysicalReleases = new Set<number>();
   private optimisticButtons = new OptimisticButtons();
+  private systemClock = new SystemClockService();
 
   constructor({
     listenIp,
@@ -200,7 +203,7 @@ export class WebSocketService {
       // MQTT clients commonly send plain text; accept JSON strings as well.
       let message = payload;
       try { const parsed = JSON.parse(payload); if (typeof parsed === "string") message = parsed; } catch { /* plain text */ }
-      this.appendPiMessage("received", message.slice(0, 500));
+      this.appendPiMessage("received", message.slice(0, 500), { sender: clientId === "dj-spl-meter" ? "dj" : undefined });
       this.broadcast({ type: "dj-message", data: { message: message.slice(0, 500) } });
       if (clientId !== "dj-spl-meter") this.mqttBroker.publishText("tosklight/dj/display-inbox", message.slice(0, 500));
     });
@@ -581,6 +584,26 @@ export class WebSocketService {
       const message = JSON.parse(data.toString());
 
       switch (message.type) {
+        case "get-phone-addresses": {
+          const addresses = Object.values(networkInterfaces()).flatMap(entries => entries ?? [])
+            .filter(entry => entry.family === "IPv4" && !entry.internal).map(entry => entry.address);
+          ws.send(JSON.stringify({ type: "phone-addresses", data: { addresses: [...new Set(addresses)] } }));
+          break;
+        }
+        case "get-clock":
+          ws.send(JSON.stringify({ type: "clock-state", data: this.systemClock.snapshot() }));
+          break;
+
+        case "set-clock":
+          try {
+            const state = await this.systemClock.set(message.data?.timestamp, message.data?.source);
+            this.broadcast({ type: "clock-state", data: state });
+            ws.send(JSON.stringify({ type: "clock-saved", data: state }));
+          } catch (error) {
+            ws.send(JSON.stringify({ type: "clock-error", data: { message: error instanceof Error ? error.message : String(error) } }));
+          }
+          break;
+
         case "only":
           // Update client's message type preferences
           if (Array.isArray(message.types)) {
@@ -679,6 +702,23 @@ export class WebSocketService {
           this.mqttBroker.publishText(this.splSettings.messageTopic, text.trim());
           this.mqttBroker.publishText("tosklight/dj/display-inbox", text.trim());
           this.appendPiMessage("sent", text.trim());
+          break;
+        }
+
+        case "send-phone-message": {
+          const text = message.data?.text;
+          const recipient = message.data?.recipient;
+          if (typeof text !== "string" || !text.trim() || text.trim().length > 160 || (recipient !== "dj" && recipient !== "technician")) {
+            ws.send(JSON.stringify({ type: "phone-message-error", data: { message: "Choose DJ or Technician and enter up to 160 characters." } }));
+            break;
+          }
+          this.appendPiMessage("received", text.trim(), { sender: "phone", recipient });
+          this.broadcast({ type: "dj-message", data: { message: text.trim(), sender: "phone", recipient } });
+          if (recipient === "dj") {
+            this.mqttBroker.publishText(this.splSettings.messageTopic, text.trim());
+            this.mqttBroker.publishText("tosklight/dj/display-inbox", text.trim());
+          }
+          ws.send(JSON.stringify({ type: "phone-message-sent" }));
           break;
         }
 
@@ -1261,8 +1301,8 @@ export class WebSocketService {
     catch (error) { console.warn("Cannot save Pi messages:", error); }
   }
 
-  private appendPiMessage(direction: PiMessage["direction"], text: string): void {
-    this.piMessages.history.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, direction, text, timestamp: new Date().toISOString() });
+  private appendPiMessage(direction: PiMessage["direction"], text: string, details: Pick<PiMessage, "sender" | "recipient"> = {}): void {
+    this.piMessages.history.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, direction, text, timestamp: new Date().toISOString(), ...details });
     this.piMessages.history = this.piMessages.history.slice(-200);
     this.savePiMessages();
     this.broadcast({ type: "pi-messages-state", data: this.piMessages });

@@ -204,21 +204,12 @@ function ExecutorPoti({
   );
 }
 
-export function ExecutorGrid({ openSettings, openMessages }: { openSettings: () => void; openMessages: () => void }) {
+export function ExecutorGrid() {
   const [active, setActive] = useState<Record<number, number>>({});
   const [executors, setExecutors] = useState<Record<number, Executor>>([]);
-  const [showName, setShowName] = useState("<Unknown Show>");
-  const [activeSource, setActiveSource] = useState<"idle" | "magicq" | "tosklight">("idle");
-  const [hardware, setHardware] = useState<{
-    status: "connecting" | "connected";
-    transport: "local" | "remote" | null;
-    detail: string;
-  }>({ status: "connecting", transport: null, detail: "Looking for Cueboard hardware…" });
-
   const handleMessage = useCallback((message: WSMessage) => {
     switch (message.type) {
       case "show-setup":
-        setShowName(message.data.showName || "<Unknown Show>");
         setExecutors(message.data.executors || []);
         break;
       case "val":
@@ -227,12 +218,6 @@ export function ExecutorGrid({ openSettings, openMessages }: { openSettings: () 
           [message.data.number]: message.data.value,
         }));
         break;
-      case "hardware-connection":
-        setHardware(message.data);
-        break;
-      case "source-values":
-        setActiveSource(message.data.activeSource);
-        break;
     }
   }, []);
 
@@ -240,25 +225,7 @@ export function ExecutorGrid({ openSettings, openMessages }: { openSettings: () 
 
   return (
     <div className="flex flex-col gap-4 h-full px-4 py-6">
-      <div className="flex flex-row justify-between items-center h-[40px]">
-        <div className="flex flex-row gap-4 items-center justify-start">
-          <button type="button" onClick={openMessages} className={clsx(btnBaseClasses, "border-gray-600 text-gray-300")}>Messages</button>
-          <button
-            type="button"
-            className={clsx(btnBaseClasses, "border-gray-600 text-gray-300")}
-            onClick={() => {
-              openSettings();
-            }}
-          >
-            Settings
-          </button>
-          <span className="text-gray-300 font-mono text-sm">
-            Current Show: {showName}
-          </span>
-          <span className={clsx("rounded-full border px-3 py-1 text-[0.65rem] uppercase tracking-wide", activeSource === "tosklight" ? "border-teal-700 text-teal-300" : activeSource === "magicq" ? "border-blue-700 text-blue-300" : "border-amber-800 text-amber-300")} title={hardware.detail}>
-            {activeSource === "tosklight" ? "ToskLight" : activeSource === "magicq" ? "MagicQ" : "Waiting"} · {hardware.status === "connecting" ? "Cueboard reconnecting" : hardware.transport === "local" ? "Pi Cueboard" : "Windows Cueboard"}
-          </span>
-        </div>
+      <div className="flex flex-row justify-end items-center h-[40px]">
         <div className="flex flex-row gap-4 items-center justify-end h-full pr-4">
           <ExecutorPoti
             execNumber={41}

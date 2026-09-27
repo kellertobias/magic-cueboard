@@ -96,7 +96,7 @@ export function DJMessages({ open, onClose }: { open: boolean; onClose: () => vo
             {piMessages.history.length === 0 && <p className="pt-4 text-center text-sm text-gray-500">Messages will appear here</p>}
             {piMessages.history.map(item => <div key={item.id} className={`flex flex-col ${item.direction === "sent" ? "items-end" : "items-start"}`}>
               <div className={`max-w-[90%] break-words whitespace-pre-wrap rounded-lg px-2.5 py-1.5 text-sm ${item.direction === "sent" ? "bg-blue-800" : "bg-gray-800"}`}>{item.text}</div>
-              <time dateTime={item.timestamp} className="mt-0.5 text-[11px] text-gray-400">{item.direction === "sent" ? "Sent" : "Received"} · {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
+              <time dateTime={item.timestamp} className="mt-0.5 text-[11px] text-gray-400">{item.sender === "phone" ? "Phone" : item.direction === "sent" ? "Sent" : "Received"}{item.recipient ? ` → ${item.recipient === "dj" ? "DJ" : "Technician"}` : ""} · {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
             </div>)}
           </div>
           {savedNotice && <p role="status" className="pb-1 text-xs text-green-400">{savedNotice}</p>}

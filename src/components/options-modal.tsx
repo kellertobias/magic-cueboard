@@ -6,6 +6,7 @@ import { btnBaseClasses } from "@/components/button";
 import type { WSMessage } from "@/components/executor-grid";
 import { BrightnessModal } from "@/components/brightness-modal";
 import { TerminalModal } from "@/components/terminal-modal";
+import { DateTimeSettings } from "@/components/date-time-settings";
 
 interface OptionsModalProps {
   isOpen: boolean;
@@ -72,7 +73,7 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
   } | null>(null);
   const [isBrightnessModalOpen, setIsBrightnessModalOpen] = useState(false);
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
-  const [settingsPage, setSettingsPage] = useState<"device" | "controls" | "system">("controls");
+  const [settingsPage, setSettingsPage] = useState<"device" | "controls" | "system" | "time">("controls");
   const [isTerminalModalOpen, setIsTerminalModalOpen] = useState(false);
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -189,14 +190,15 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mb-3" role="tablist" aria-label="Settings sections">
-            {([['device', 'Device'], ['controls', 'Controls'], ['system', 'System']] as const).map(([page, label]) => (
+          <div className="grid grid-cols-4 gap-2 mb-3" role="tablist" aria-label="Settings sections">
+            {([['device', 'Device'], ['controls', 'Controls'], ['system', 'System'], ['time', 'Date and time']] as const).map(([page, label]) => (
               <button key={page} type="button" role="tab" aria-selected={settingsPage === page} onClick={() => setSettingsPage(page)} className={clsx(btnBaseClasses, "min-h-9 py-1", settingsPage === page ? "border-cyan-400 text-white" : "border-gray-700 text-gray-400")}>
                 {label}
               </button>
             ))}
           </div>
           <div>
+            {settingsPage === "time" && <DateTimeSettings />}
             {/* Left column - Device Info */}
             <div className={settingsPage === "device" ? "block" : "hidden"}>
               <h3 className="text-sm font-medium text-gray-400 mb-2">
