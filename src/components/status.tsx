@@ -48,20 +48,22 @@ export function ConnectionStatus({ actions }: { actions?: ReactNode }) {
   const disconnectedSeconds = disconnectedSince ? Math.floor((Date.now() - disconnectedSince) / 1000) : 0;
 
   return (
-    <div className="w-full px-3 text-white">
-      <div className="flex items-center gap-2 min-h-8">
-        {actions}
-        <span className={`text-[10px] uppercase tracking-wide ${activeSource === "tosklight" ? "text-teal-300" : activeSource === "magicq" ? "text-blue-300" : "text-amber-300"}`} title={hardware.detail}>
-          {activeSource === "tosklight" ? "ToskLight" : activeSource === "magicq" ? "MagicQ" : "Waiting"} · {hardware.status === "connecting" ? "Cueboard reconnecting" : hardware.transport === "local" ? "Pi Cueboard" : "Windows Cueboard"}
-        </span>
-        <div className="flex items-center ml-auto shrink-0 gap-1.5 text-[11px] text-gray-300">
-          <span className={`w-2 h-2 rounded-full ${current ? "bg-green-500 shadow-[0_0_5px_#22c55e]" : "bg-red-500"}`} />
-          {status !== "connected" ? `Pi disconnected${disconnectedSeconds >= 3 ? ` (${disconnectedSeconds}s)` : ""}` : current ? "Connected" : windowsConnected === false ? "Windows reconnecting" : "Waiting for Windows data"}
+    <div className="cueboard-status">
+      <div className="cueboard-status-header">
+        {actions && <div className="cueboard-toolbar">{actions}</div>}
+        <div className="cueboard-connection">
+          <span className={`cueboard-source ${activeSource === "tosklight" ? "text-teal-300" : activeSource === "magicq" ? "text-blue-300" : "text-amber-300"}`} title={hardware.detail}>
+            {activeSource === "tosklight" ? "ToskLight" : activeSource === "magicq" ? "MagicQ" : "Waiting"} · {hardware.status === "connecting" ? "Cueboard reconnecting" : hardware.transport === "local" ? "Pi Cueboard" : "Windows Cueboard"}
+          </span>
+          <div className="cueboard-connection-state">
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${current ? "bg-green-500 shadow-[0_0_5px_#22c55e]" : "bg-red-500"}`} />
+            {status !== "connected" ? `Pi disconnected${disconnectedSeconds >= 3 ? ` (${disconnectedSeconds}s)` : ""}` : current ? "Connected" : windowsConnected === false ? "Windows reconnecting" : "Waiting for Windows data"}
+          </div>
         </div>
       </div>
-      <div className="grid grid-cols-4 gap-1 mt-0.5">
+      <div className="cueboard-metrics" aria-label="Windows system metrics">
         <Metric label="CPU P95 · 5s" value={percent(current?.cpuP95Percent ?? null)}>
-          <svg width="72" height="16" viewBox="0 0 72 16" aria-hidden="true" className="mt-0.5">
+          <svg width="72" height="16" viewBox="0 0 72 16" aria-hidden="true" className="cueboard-cpu-history">
             {points && <polyline points={points} fill="none" stroke="#22c55e" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />}
           </svg>
         </Metric>
@@ -74,9 +76,9 @@ export function ConnectionStatus({ actions }: { actions?: ReactNode }) {
 }
 
 function Metric({ label, value, detail, children }: { label: string; value: string; detail?: string; children?: React.ReactNode }) {
-  return <div className="min-w-0 border-l border-gray-800 pl-2">
-    <div className="text-[10px] leading-3 text-gray-400 whitespace-nowrap">{label}</div>
-    <div className="text-base font-semibold leading-5 whitespace-nowrap">{value}<span className="text-[10px] font-normal text-gray-400">{detail}</span></div>
+  return <div className="cueboard-metric">
+    <div className="cueboard-metric-label">{label}</div>
+    <div className="cueboard-metric-value">{value}<span className="cueboard-metric-detail">{detail}</span></div>
     {children}
   </div>;
 }

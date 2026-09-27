@@ -27,12 +27,12 @@ export default function Home() {
             "grid grid-cols-7"
           )}
         >
-          <div className="col-span-2 flex flex-col h-[320px]">
-            <div className="flex flex-row items-center pt-2 pb-1">
+          <div className="cueboard-sidebar col-span-2">
+            <div className="min-w-0">
               <ConnectionStatus actions={<>
                 <MessagesButton open={isMessagesOpen} onOpen={() => setIsMessagesOpen(true)} />
                 <button type="button" aria-label="Settings" title="Settings" onClick={() => setIsOptionsOpen(true)}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-600 text-gray-300 hover:bg-gray-800 focus-visible:outline focus-visible:outline-blue-400">
+                  className="cueboard-icon-button">
                   <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <path d="m9.5 3-.5 3-2 1-2.8-1-2.5 4.3L4 12l-2.3 1.7L4.2 18 7 17l2 1 .5 3h5l.5-3 2-1 2.8 1 2.5-4.3L20 12l2.3-1.7L19.8 6 17 7l-2-1-.5-3Z" />
                     <circle cx="12" cy="12" r="3" />
@@ -40,10 +40,10 @@ export default function Home() {
                 </button>
               </>} />
             </div>
-            <div className="h-20">
+            <div className="min-w-0">
               <Clock />
             </div>
-            <div className="row-span-7">
+            <div className="min-h-0">
               <SPLMeter />
             </div>
           </div>

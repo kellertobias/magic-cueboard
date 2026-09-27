@@ -61,26 +61,27 @@ export function SPLMeter() {
   );
 
   return <>
-    <button type="button" className="relative w-full p-6 pt-0 text-white text-left focus-visible:outline focus-visible:outline-blue-400" onClick={() => { setDraft(settings); setSaved(false); setOpen(true); }} aria-label="Open SPL settings">
-      <svg aria-hidden="true" className="absolute right-3 top-0 h-4 w-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m16 3 5 5-12 12-6 1 1-6Z" /><path d="m14 5 5 5" /></svg>
-      <div className="space-y-4">
-        <div className="text-center">
-          <div className="text-5xl font-bold mb-2 font-mono flex flex-row items-center justify-center px-4">
-            <div className={`${colorClass[state?.color ?? "blue"]} text-5xl w-40`}>
-              {state ? state.average.toFixed(1) : "--.-"}
-            </div>
-            <div className="flex flex-col items-start justify-start pl-4 -mt-5 w-40 font-sans">
-              <div><span className="text-lg mb-1">{state?.freqMode ?? "dBA"}</span>{" "}<span className="font-light text-gray-400 text-xs mb-1">(Avg / Peak)</span></div>
-              <div className="h-1 w-full bg-gray-700 rounded-full"><SPLBar value={state?.peak ?? 0} minValue={range[0]} maxValue={range[1]} color={state?.color ?? "blue"} /></div>
-            </div>
+    <button type="button" className="cueboard-spl" onClick={() => { setDraft(settings); setSaved(false); setOpen(true); }} aria-label="Open SPL settings">
+      <div className="cueboard-spl-reading">
+        <div className="cueboard-spl-average">
+          <span className="cueboard-section-label">Sound level · average</span>
+          <div className="flex items-baseline gap-2">
+            <span className={`cueboard-spl-value ${colorClass[state?.color ?? "blue"]}`}>{state ? state.average.toFixed(1) : "--.-"}</span>
+            <span className="cueboard-spl-unit">{state?.freqMode ?? "dBA"}</span>
           </div>
         </div>
-        <div className="flex justify-stretch gap-2">
-          <div className="h-24 grow relative">
-            <SPLGraph data={measurements} maxPoints={400} minValue={range[0]} maxValue={range[1]} thresholds={settings.average} />
-            <div className="absolute top-0 bottom-0 right-0 p-1.5 flex flex-col justify-between text-xs text-gray-400"><span>{range[1]} {state?.freqMode ?? "dBA"}</span><span>{range[0]} {state?.freqMode ?? "dBA"}</span></div>
+        <div className="cueboard-spl-peak">
+          <div className="flex items-center justify-between gap-2">
+            <span className="cueboard-section-label">Peak</span>
+            <span className="cueboard-spl-peak-value">{state ? state.peak.toFixed(1) : "—"}</span>
+            <svg aria-hidden="true" className="h-3 w-3 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m16 3 5 5-12 12-6 1 1-6Z" /><path d="m14 5 5 5" /></svg>
           </div>
+          <div className="cueboard-spl-rail"><SPLBar value={state?.peak ?? 0} minValue={range[0]} maxValue={range[1]} color={state?.color ?? "blue"} /></div>
         </div>
+      </div>
+      <div className="cueboard-spl-graph">
+        <SPLGraph data={measurements} maxPoints={400} minValue={range[0]} maxValue={range[1]} thresholds={settings.average} />
+        <div className="cueboard-spl-scale"><span>{range[1]}</span><span>{range[0]}</span></div>
       </div>
     </button>
     {open && <div className="fixed inset-0 z-50 flex flex-col bg-gray-950 p-3 text-white" role="dialog" aria-modal="true" aria-label="SPL settings">
