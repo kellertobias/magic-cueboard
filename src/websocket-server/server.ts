@@ -221,6 +221,7 @@ export class WebSocketService {
     }
     this.mqttBroker.start();
     this.publishDJMessageSettings();
+    this.publishDisplayTime();
     this.splStateTimer = setInterval(() => this.refreshSPLState(), 250);
 
     // Start child process if available
@@ -238,16 +239,7 @@ export class WebSocketService {
     // Start periodic show loading
     if (this.magicqSource === "self") this.startPeriodicShowLoading();
 
-    this.timeInterval = setInterval(() => {
-      const time = new Date();
-      this.mqttBroker.publish(
-        "time",
-        `${time.getHours().toString().padStart(2, "0")}:${time
-          .getMinutes()
-          .toString()
-          .padStart(2, "0")}:${time.getSeconds().toString().padStart(2, "0")}`
-      );
-    }, 1000);
+    this.timeInterval = setInterval(() => this.publishDisplayTime(), 1000);
 
     console.log("Server fully started");
   }
@@ -597,6 +589,8 @@ export class WebSocketService {
         case "set-clock":
           try {
             const state = await this.systemClock.set(message.data?.timestamp, message.data?.source);
+            // Send the new value at once instead of waiting for the next ticker cycle.
+            this.publishDisplayTime();
             this.broadcast({ type: "clock-state", data: state });
             ws.send(JSON.stringify({ type: "clock-saved", data: state }));
           } catch (error) {
@@ -1338,6 +1332,17 @@ export class WebSocketService {
     this.splSettings.messages.forEach((message, index) => {
       this.mqttBroker.publishText(`tosklight/dj/preset/${index + 1}`, message, true);
     });
+  }
+
+  private publishDisplayTime(): void {
+    const time = new Date();
+    const value = `${time.getHours().toString().padStart(2, "0")}:${time
+      .getMinutes()
+      .toString()
+      .padStart(2, "0")}:${time.getSeconds().toString().padStart(2, "0")}`;
+    // The display can reconnect independently of the Qboard; retain its most
+    // recent clock value so it renders immediately and then receives live ticks.
+    this.mqttBroker.publishText("time", value, true);
   }
 
   public async stop(): Promise<void> {

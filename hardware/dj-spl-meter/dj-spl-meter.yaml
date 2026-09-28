@@ -165,6 +165,8 @@ mqtt:
             text: !lambda |-
               return id(dj_message_6).empty() ? "—" : id(dj_message_6).c_str();
 
+    # The Qboard retains this topic and republishes it immediately after a
+    # clock change, so this display applies the updated time after reconnects.
     - topic: "time"
       then:
         - lvgl.label.update:

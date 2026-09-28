@@ -44,13 +44,16 @@ describe("clock protocol", () => {
     expect(replies.pop()).toEqual({ type: "clock-state", data: state });
     await runtime.handleWebSocketMessage(ws, JSON.stringify({ type: "set-clock", data: { timestamp: state.timestamp, source: "phone" } }));
     expect(runtime.systemClock.set).toHaveBeenCalledWith(state.timestamp, "phone");
+    expect(runtime.mqttBroker.publishText).toHaveBeenCalledWith("time", expect.stringMatching(/^\d{2}:\d{2}:\d{2}$/), true);
     expect(runtime.broadcast).toHaveBeenCalledWith({ type: "clock-state", data: state });
     expect(replies.pop()).toEqual({ type: "clock-saved", data: state });
     runtime.broadcast.mockClear();
+    runtime.mqttBroker.publishText.mockClear();
     runtime.systemClock.set.mockRejectedValue(new Error("Permission denied"));
     await runtime.handleWebSocketMessage(ws, JSON.stringify({ type: "set-clock", data: { timestamp: state.timestamp, source: "manual" } }));
     expect(replies.pop()).toEqual({ type: "clock-error", data: { message: "Permission denied" } });
     expect(runtime.broadcast).not.toHaveBeenCalled();
+    expect(runtime.mqttBroker.publishText).not.toHaveBeenCalled();
   });
 });
 
