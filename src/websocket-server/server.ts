@@ -757,6 +757,27 @@ export class WebSocketService {
           break;
         }
 
+        case "set-group-reply-preset": {
+          const index = message.data?.index;
+          const text = message.data?.text;
+          if (!Number.isInteger(index) || index < 0 || index >= 6 || typeof text !== "string" || text.trim().length > 160) {
+            ws.send(JSON.stringify({ type: "pi-message-error", data: { message: "Enter a preset of up to 160 characters." } }));
+            break;
+          }
+          try {
+            const current = validatePiMessagesState(this.piMessages);
+            const next = { ...current, groupReplyPresets: current.groupReplyPresets!.map((item, i) => i === index ? text.trim() : item) };
+            writeFileSync(this.piMessagesPath, JSON.stringify(next, null, 2));
+            this.piMessages = next;
+            // Every connected phone receives the replacement immediately.
+            this.broadcast({ type: "pi-messages-state", data: this.piMessages });
+            ws.send(JSON.stringify({ type: "group-reply-preset-saved", data: { index } }));
+          } catch (error) {
+            ws.send(JSON.stringify({ type: "pi-message-error", data: { message: error instanceof Error ? error.message : String(error) } }));
+          }
+          break;
+        }
+
         case "set-source":
           if (message.data?.source !== "auto" && message.data?.source !== "self" && message.data?.source !== "windows" && message.data?.source !== "tosklight") {
             ws.send(JSON.stringify({ type: "error", error: "Surface source must be automatic, self, windows or tosklight." }));

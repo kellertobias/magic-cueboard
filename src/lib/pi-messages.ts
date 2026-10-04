@@ -16,6 +16,7 @@ export const defaultPhonePresets: MessagePresetSets = {
   dj: ["Audio problem", "Light problem", "Need assistance", "", "", ""],
   group: ["On my way", "Ready", "Need help", "Thanks", "", ""],
 };
+export const defaultGroupReplyPresets = ["On my way", "Ready", "Need help", "Thanks", "", ""];
 export function validatePresetSets(value: unknown, defaults: MessagePresetSets): MessagePresetSets {
   const input = value as Partial<MessagePresetSets> | null;
   const bank = (destination: "dj" | "group") => Array.from({ length: 6 }, (_, index) => {
@@ -29,12 +30,15 @@ export const PHONE_PRESETS_STORAGE_KEY = "light-assistant.phone-presets.v1";
 export type PiMessagesState = {
   presets: string[];
   outgoingPresets?: MessagePresetSets;
+  /** Presets centrally managed on the Cueboard for every group-chat phone. */
+  groupReplyPresets?: string[];
   history: PiMessage[];
 };
 
 export const defaultPiMessagesState: PiMessagesState = {
   presets: ["You are too loud", "You are too quiet", "", "", "", ""],
   outgoingPresets: defaultPiOutgoingPresets,
+  groupReplyPresets: defaultGroupReplyPresets,
   history: [],
 };
 
@@ -57,7 +61,11 @@ export function validatePiMessagesState(value: unknown): PiMessagesState {
     ...(item.recipient === "dj" || item.recipient === "technician" || item.recipient === "group" ? { recipient: item.recipient } : {}),
     ...(item.sender === "phone" || item.sender === "qboard" || item.sender === "dj" ? { sender: item.sender } : {}),
   })) : [];
-  return { presets, history, outgoingPresets: validatePresetSets(state.outgoingPresets, { dj: presets, group: defaultPiOutgoingPresets.group }) };
+  const groupReplyPresets = Array.from({ length: 6 }, (_, index) => {
+    const text = Array.isArray(state.groupReplyPresets) ? state.groupReplyPresets[index] : undefined;
+    return typeof text === "string" && text.trim().length <= 160 ? text.trim() : defaultGroupReplyPresets[index];
+  });
+  return { presets, history, groupReplyPresets, outgoingPresets: validatePresetSets(state.outgoingPresets, { dj: presets, group: defaultPiOutgoingPresets.group }) };
 }
 
 export function messageRecipientLabel(recipient: PiMessage["recipient"]): string {

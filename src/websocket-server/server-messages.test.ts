@@ -67,4 +67,21 @@ describe("Cueboard outgoing preset banks", () => {
       expect(replies.map(item => item.type)).toEqual(["pi-preset-saved", "pi-preset-saved"]);
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
+
+  it("persists group-phone replies separately and broadcasts them to mobile remotes", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "group-reply-presets-"));
+    try {
+      const runtime = Object.create(WebSocketService.prototype);
+      runtime.piMessagesPath = join(directory, "pi.json");
+      runtime.piMessages = { presets: [], history: [] };
+      const broadcasts: unknown[] = [];
+      runtime.broadcast = (message: unknown) => broadcasts.push(message);
+      const replies: any[] = [];
+      await runtime.handleWebSocketMessage({ send: (text: string) => replies.push(JSON.parse(text)) }, JSON.stringify({ type: "set-group-reply-preset", data: { index: 0, text: "On my way" } }));
+      const saved = JSON.parse(readFileSync(runtime.piMessagesPath, "utf8"));
+      expect(saved.groupReplyPresets[0]).toBe("On my way");
+      expect(broadcasts).toContainEqual(expect.objectContaining({ type: "pi-messages-state", data: expect.objectContaining({ groupReplyPresets: expect.arrayContaining(["On my way"]) }) }));
+      expect(replies).toEqual([{ type: "group-reply-preset-saved", data: { index: 0 } }]);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  });
 });

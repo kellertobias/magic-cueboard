@@ -9,6 +9,7 @@ describe("Cueboard message destinations", () => {
   afterEach(() => vi.unstubAllGlobals());
   it("routes presets and typed messages to the selected destination; Back home sends nothing", () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.useFakeTimers();
     const listeners = new Set<(message: any) => void>();
     const sendMessage = vi.fn();
     const onClose = vi.fn();
@@ -24,6 +25,12 @@ describe("Cueboard message destinations", () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(input, text);
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    const hold = (text: string) => act(() => {
+      const button = Array.from(container.querySelectorAll("button")).find(item => item.textContent === text)!;
+      button.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      vi.advanceTimersByTime(650);
+      button.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    });
     try {
       act(() => root.render(<WebSocketContext.Provider value={context}><DJMessages open onClose={onClose} /></WebSocketContext.Provider>));
       sendMessage.mockClear();
@@ -35,16 +42,18 @@ describe("Cueboard message destinations", () => {
       expect(sendMessage).toHaveBeenLastCalledWith({ type: "send-pi-message", data: { text: "Hello DJ", recipient: "dj" } });
       click("You are too loud");
       expect(sendMessage).toHaveBeenLastCalledWith({ type: "send-pi-message", data: { text: "You are too loud", recipient: "dj" } });
-      sendMessage.mockClear(); click("Edit presets"); click("You are too loud"); draft("Pi outgoing preset"); click("Save preset");
-      expect(sendMessage).toHaveBeenLastCalledWith({ type: "set-pi-preset", data: { index: 0, text: "Pi outgoing preset", recipient: "dj" } });
-      click("Done editing"); click("DJ replies"); click("Audio problem"); draft("DJ reply preset"); click("Save preset");
+      sendMessage.mockClear(); hold("DJ display");
+      expect(container.textContent).toContain("Configure DJ replies");
+      click("Audio problem"); draft("DJ reply preset"); hold("Audio problem");
       expect(sendMessage).toHaveBeenLastCalledWith({ type: "set-dj-preset", data: { index: 0, text: "DJ reply preset" } });
-      draft(""); click("Save preset");
-      expect(sendMessage).toHaveBeenLastCalledWith({ type: "set-dj-preset", data: { index: 0, text: "" } });
+      hold("Group chat");
+      expect(container.textContent).toContain("Configure group phone replies");
+      click("On my way"); draft("Shared group reply"); hold("On my way");
+      expect(sendMessage).toHaveBeenLastCalledWith({ type: "set-group-reply-preset", data: { index: 0, text: "Shared group reply" } });
       expect(sendMessage.mock.calls.every(([message]) => message.type.startsWith("set-"))).toBe(true);
       sendMessage.mockClear(); click("← Back home");
       expect(onClose).toHaveBeenCalledOnce();
       expect(sendMessage).not.toHaveBeenCalled();
-    } finally { act(() => root.unmount()); }
+    } finally { act(() => root.unmount()); vi.useRealTimers(); }
   });
 });

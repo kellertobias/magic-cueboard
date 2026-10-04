@@ -43,7 +43,7 @@ export default function Home() {
             <div className="min-w-0">
               <Clock />
             </div>
-            <div className="min-h-0">
+            <div className="min-h-0 min-w-0 w-full">
               <SPLMeter />
             </div>
           </div>

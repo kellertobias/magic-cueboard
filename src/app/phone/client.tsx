@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { defaultPiMessagesState, defaultPhonePresets, validatePresetSets, PHONE_PRESETS_STORAGE_KEY, type MessagePresetSets, messageRecipientLabel, type PiMessagesState } from "@/lib/pi-messages";
+import { defaultGroupReplyPresets, defaultPiMessagesState, defaultPhonePresets, validatePiMessagesState, validatePresetSets, PHONE_PRESETS_STORAGE_KEY, type MessagePresetSets, messageRecipientLabel, type PiMessagesState } from "@/lib/pi-messages";
 
 export function PhoneChat() {
   const [history, setHistory] = useState<PiMessagesState>(defaultPiMessagesState);
@@ -17,7 +17,7 @@ export function PhoneChat() {
   const [error, setError] = useState("");
   const scroll = useRef<HTMLDivElement>(null);
   const { status, sendMessage } = useWebSocket((message: { type: string; data: any }) => {
-    if (message.type === "pi-messages-state") setHistory(message.data);
+    if (message.type === "pi-messages-state") setHistory(validatePiMessagesState(message.data));
     if (message.type === "phone-message-sent") { setDraft(""); setPending(false); setNotice("Message sent"); }
     if (message.type === "phone-message-error") { setError(message.data.message); setPending(false); }
     if (message.type === "clock-saved") setNotice(message.data?.warning || "Clock synchronized with this phone");
@@ -60,7 +60,7 @@ export function PhoneChat() {
     </div>
     {notice && <p role="status" className="text-sm text-green-400">{notice}</p>}
     {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
-    {editingPresets && <section className="shrink-0 rounded-lg border border-gray-600 p-3" aria-label="Edit phone saved messages">
+    {editingPresets && recipient === "dj" && <section className="shrink-0 rounded-lg border border-gray-600 p-3" aria-label="Edit phone saved messages">
       <p className="mb-2 text-sm">Saved messages to {recipient === "dj" ? "DJ display" : "group chat"} · this phone only</p>
       <div className="grid grid-cols-2 gap-2">{presetDraft[recipient].map((text, index) => <input key={index} aria-label={`Saved message ${index + 1}`} maxLength={160} value={text} placeholder="Empty slot" onChange={event => setPresetDraft(previous => ({ ...previous, [recipient]: previous[recipient].map((item, i) => i === index ? event.target.value : item) }))} className="min-w-0 rounded border border-gray-600 bg-gray-900 p-2 text-sm" />)}</div>
       <div className="mt-3 flex gap-2"><button type="button" onClick={() => {
@@ -80,8 +80,8 @@ export function PhoneChat() {
           <input type="radio" name="recipient" value={value} checked={recipient === value} onChange={() => { setRecipient(value); setEditingPresets(false); }} />{value === "dj" ? "DJ display" : "Group chat"}
         </label>)}
       </fieldset>
-      {!editingPresets && <section aria-label="Phone saved messages"><div className="mb-2 flex items-center justify-between"><span className="text-xs text-gray-400">Saved on this phone · tap to compose</span><button type="button" onClick={() => { setPresetDraft(validatePresetSets(presets, defaultPhonePresets)); setEditingPresets(true); }} className="rounded border border-gray-600 px-3 py-2 text-xs">Edit saved messages</button></div>
-        <div className="grid grid-cols-2 gap-2">{presets[recipient].map((text, index) => <button key={index} type="button" disabled={!text || pending} onClick={() => setDraft(text)} className="min-h-10 rounded border border-gray-600 bg-gray-900 p-2 text-sm disabled:opacity-40">{text || "[empty]"}</button>)}</div>
+      {!editingPresets && <section aria-label="Phone saved messages"><div className="mb-2 flex items-center justify-between"><span className="text-xs text-gray-400">{recipient === "group" ? "Group replies set on Cueboard · tap to compose" : "Saved on this phone · tap to compose"}</span>{recipient === "dj" && <button type="button" onClick={() => { setPresetDraft(validatePresetSets(presets, defaultPhonePresets)); setEditingPresets(true); }} className="rounded border border-gray-600 px-3 py-2 text-xs">Edit saved messages</button>}</div>
+        <div className="grid grid-cols-2 gap-2">{(recipient === "group" ? history.groupReplyPresets ?? defaultGroupReplyPresets : presets.dj).map((text, index) => <button key={index} type="button" disabled={!text || pending} onClick={() => setDraft(text)} className="min-h-10 rounded border border-gray-600 bg-gray-900 p-2 text-sm disabled:opacity-40">{text || "[empty]"}</button>)}</div>
       </section>}
       <p className="text-xs text-gray-400">All mobile remotes share this history. Only messages addressed to DJ display are sent to the DJ display.</p>
       <div className="flex gap-2">

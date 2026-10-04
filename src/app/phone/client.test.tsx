@@ -30,6 +30,7 @@ describe("phone chat", () => {
     try {
       render();
       const click = (text: string) => act(() => Array.from(container.querySelectorAll("button")).find(button => button.textContent === text)!.click());
+      act(() => container.querySelector<HTMLInputElement>('input[value="dj"]')!.click());
       click("Edit saved messages");
       const preset = container.querySelector<HTMLInputElement>('input[aria-label="Saved message 1"]')!;
       act(() => {
@@ -39,13 +40,12 @@ describe("phone chat", () => {
       const beforeSave = sendMessage.mock.calls.length;
       click("Save on this phone");
       expect(sendMessage.mock.calls.length).toBe(beforeSave);
-      expect(JSON.parse(storage.get(PHONE_PRESETS_STORAGE_KEY)!).group[0]).toBe("My phone preset");
+      expect(JSON.parse(storage.get(PHONE_PRESETS_STORAGE_KEY)!).dj[0]).toBe("My phone preset");
       click("My phone preset");
       expect(container.querySelector("textarea")!.value).toBe("My phone preset");
       expect(sendMessage.mock.calls.length).toBe(beforeSave);
       expect(sendMessage).toHaveBeenCalledWith({ type: "set-clock", data: { timestamp: expect.any(Number), source: "phone" } });
-      expect(container.querySelector<HTMLInputElement>('input[value="group"]')!.checked).toBe(true);
-      act(() => container.querySelector<HTMLInputElement>('input[value="dj"]')!.click());
+      expect(container.querySelector<HTMLInputElement>('input[value="dj"]')!.checked).toBe(true);
       const textarea = container.querySelector("textarea")!;
       act(() => {
         Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, "Hello DJ");
@@ -70,10 +70,11 @@ describe("phone chat", () => {
       act(() => root.unmount());
       root = createRoot(container);
       render();
-      expect(container.textContent).toContain("My phone preset");
       act(() => container.querySelector<HTMLInputElement>('input[value="dj"]')!.click());
-      expect(container.textContent).toContain("Audio problem");
-      expect(container.textContent).not.toContain("My phone preset");
+      expect(container.textContent).toContain("My phone preset");
+      receive("pi-messages-state", { presets: [], history: [], groupReplyPresets: ["Shared reply", "", "", "", "", ""] });
+      act(() => container.querySelector<HTMLInputElement>('input[value="group"]')!.click());
+      expect(container.textContent).toContain("Shared reply");
     } finally { act(() => root.unmount()); }
   });
 });

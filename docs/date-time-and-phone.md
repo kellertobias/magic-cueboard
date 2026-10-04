@@ -31,7 +31,7 @@ Messages carry destination metadata, preserved in stored history and shown on bo
 
 The Cueboard stores separate outgoing DJ and group-chat preset banks in pi-messages.json. These never reuse or edit the DJ-owned SPL-display presets. Existing Pi presets migrate to its outgoing DJ bank; group chat receives its own starter set.
 
-Phones receive separate starter sets for DJ and group chat. Edit saved messages saves both banks under light-assistant.phone-presets.v1 in that browser's local storage. A preset tap fills the composer; Send explicitly delivers it. Phone edits are never sent to the Cueboard or other phones. Clearing browser storage restores starters.
+Phones keep a per-phone DJ-display starter set under light-assistant.phone-presets.v1. Their group-chat replies are centrally configured on the Cueboard and update on every connected phone immediately. A preset tap fills the composer; Send explicitly delivers it. Clearing browser storage restores the phone's DJ starters.
 
 Settings shows device IP and current show in the sidebar instead of CPU metrics. The former Device tab is now SPL limits and uses the same average/peak thresholds and time-window editor as the home sound-level panel.
 
