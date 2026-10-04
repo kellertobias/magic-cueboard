@@ -46,6 +46,10 @@ export type WSMessage =
   | {
       type: "system-command-response";
       data: { command: string; output: string; isError: boolean };
+    }
+  | {
+      type: "system-command-complete";
+      data: { command: string; succeeded: boolean };
     };
 
 const darkenColor = (color: string, amount: number) => {

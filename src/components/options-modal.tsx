@@ -125,6 +125,14 @@ export function OptionsModal({ isOpen, onClose }: OptionsModalProps) {
           hasError: prev?.hasError || message.data.isError || false,
         }));
         break;
+      case "system-command-complete":
+        setIsExecuting(false);
+        // Only a zero-exit software update receives this success path. Delay
+        // briefly so the terminal can render its final confirmation first.
+        if (message.data?.command === "update-software" && message.data?.succeeded) {
+          window.setTimeout(() => window.location.reload(), 1000);
+        }
+        break;
     }
   }, []);
 

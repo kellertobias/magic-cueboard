@@ -13,8 +13,8 @@ export class CommandExecutorService extends EventEmitter {
   /**
    * Execute a shell command and emit its output line by line
    */
-  public async callCommand(command: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+  public async callCommand(command: string): Promise<boolean> {
+    return new Promise(resolve => {
       const process = spawn(command, [], {
         shell: true,
         stdio: ["pipe", "pipe", "pipe"],
@@ -49,14 +49,14 @@ export class CommandExecutorService extends EventEmitter {
       // Handle process completion
       process.on("close", (code: number) => {
         if (code === 0) {
-          resolve();
+          resolve(true);
         } else {
           this.emit("output", {
             line: `Command failed with exit code ${code}`,
             isError: true,
           });
           console.error("Command error:", `Command failed with code ${code}`);
-          resolve();
+          resolve(false);
         }
       });
 
@@ -67,7 +67,7 @@ export class CommandExecutorService extends EventEmitter {
           isError: true,
         });
         console.error("Command error:", String(err));
-        resolve();
+        resolve(false);
       });
     });
   }

@@ -960,9 +960,8 @@ export class WebSocketService {
         const shellCommand = command === "update-software"
           ? `if [ "$(id -un)" = keller ]; then ${updateScript}; else sudo -n -u keller ${updateScript}; fi`
           : systemCommands[command as keyof typeof systemCommands];
-        await this.commandExecutor.callCommand(
-          shellCommand
-        );
+        const succeeded = await this.commandExecutor.callCommand(shellCommand);
+        this.broadcast({ type: "system-command-complete", data: { command, succeeded } });
       } else {
         console.error("Unknown system command:", command);
         ws.send(
